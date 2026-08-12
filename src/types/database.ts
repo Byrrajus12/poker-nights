@@ -35,6 +35,7 @@ export interface Database {
           preferred_payment_handle?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       groups: {
         Row: {
@@ -61,6 +62,7 @@ export interface Database {
           buyin_presets?: number[];
           created_at?: string;
         };
+        Relationships: [];
       };
       group_members: {
         Row: {
@@ -90,6 +92,7 @@ export interface Database {
           is_claimed?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
       sessions: {
         Row: {
@@ -119,6 +122,7 @@ export interface Database {
           ended_at?: string | null;
           notes?: string | null;
         };
+        Relationships: [];
       };
       session_players: {
         Row: {
@@ -139,6 +143,7 @@ export interface Database {
           member_id?: string;
           joined_at?: string;
         };
+        Relationships: [];
       };
       transactions: {
         Row: {
@@ -168,6 +173,7 @@ export interface Database {
           created_by?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       settlements: {
         Row: {
@@ -200,7 +206,17 @@ export interface Database {
           is_paid?: boolean;
           paid_at?: string | null;
         };
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: {
+      generate_invite_code: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
+    };
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }
