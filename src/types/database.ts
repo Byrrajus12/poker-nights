@@ -154,6 +154,7 @@ export interface Database {
           amount: number;
           created_by: string;
           created_at: string;
+          payment_method: 'venmo' | 'cashapp' | 'zelle' | 'cash' | null
         };
         Insert: {
           id?: string;
@@ -163,6 +164,7 @@ export interface Database {
           amount: number;
           created_by: string;
           created_at?: string;
+          payment_method: 'venmo' | 'cashapp' | 'zelle' | 'cash' | null
         };
         Update: {
           id?: string;
@@ -172,6 +174,7 @@ export interface Database {
           amount?: number;
           created_by?: string;
           created_at?: string;
+          payment_method: 'venmo' | 'cashapp' | 'zelle' | 'cash' | null
         };
         Relationships: [];
       };
