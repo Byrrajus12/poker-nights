@@ -6,46 +6,37 @@ import { useRouter } from "next/navigation";
 export default function JoinPage() {
   const router = useRouter();
   const [code, setCode] = useState("");
-
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const trimmedCode = code.trim();
-    if (!trimmedCode) return;
-
-    router.push(`/join/${encodeURIComponent(trimmedCode)}`);
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed) router.push(`/join/${encodeURIComponent(trimmed)}`);
   }
-
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-zinc-50">
-      <form className="w-full max-w-sm space-y-4" onSubmit={handleSubmit}>
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">Join a group</h1>
-          <p className="text-sm text-zinc-400">Enter your invite code.</p>
-        </div>
-
-        <label className="block space-y-2" htmlFor="invite-code">
-          <span className="text-sm font-medium text-zinc-200">Invite code</span>
-          <input
-            autoCapitalize="characters"
-            autoComplete="off"
-            className="h-12 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 text-center text-base tracking-widest text-zinc-50 outline-none placeholder:tracking-normal placeholder:text-zinc-500 focus:border-zinc-400"
-            id="invite-code"
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="ABC123"
-            required
-            value={code}
-          />
-        </label>
-
+    <section>
+      <h1 className="text-[30px] font-bold tracking-[-0.02em] text-ink">Join a group</h1>
+      <p className="mt-1 text-[15px] text-ink-2">
+        Enter the 6-character invite code from your host.
+      </p>
+      <form className="mt-7" onSubmit={handleSubmit}>
+        <input
+          autoCapitalize="characters"
+          autoComplete="off"
+          autoFocus
+          className="h-16 w-full rounded-2xl bg-surface-2 text-center text-[28px] font-bold tracking-[0.35em] uppercase tabular-nums text-ink outline-none placeholder:text-ink-3 placeholder:tracking-[0.35em] focus:ring-2 focus:ring-accent/30"
+          maxLength={6}
+          onChange={(event) => setCode(event.target.value.toUpperCase())}
+          placeholder="ABC123"
+          required
+          value={code}
+        />
         <button
-          className="h-12 w-full rounded-md bg-zinc-50 px-4 text-base font-medium text-zinc-950 disabled:cursor-not-allowed disabled:opacity-70"
+          className="mt-4 h-14 w-full rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:bg-surface-2 disabled:text-ink-3"
           disabled={!code.trim()}
           type="submit"
         >
-          Join
+          Continue
         </button>
       </form>
-    </main>
+    </section>
   );
 }

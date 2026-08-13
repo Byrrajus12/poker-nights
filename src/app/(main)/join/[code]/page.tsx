@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ClaimFlow from "./claim-flow";
@@ -18,15 +19,21 @@ export default async function JoinWithCodePage({
 
   if (groupError || !group) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-zinc-50">
-        <section className="w-full max-w-sm space-y-3 text-center">
-          <h1 className="text-2xl font-semibold">Invalid invite code</h1>
-          <p className="text-sm text-zinc-400">
-            Check the code and ask your host for a fresh invite if it still does
-            not work.
-          </p>
-        </section>
-      </main>
+      <section>
+        <h1 className="text-[30px] font-bold tracking-[-0.02em] text-ink">Invalid code</h1>
+        <p className="mt-1 text-[15px] text-ink-2">
+          Check the code with your host and try again.
+        </p>
+        <div className="mt-7 rounded-2xl bg-surface-2 p-4 text-[15px] text-ink-2">
+          That invite code doesn&apos;t match a group.
+        </div>
+        <Link
+          className="mt-4 h-14 w-full rounded-full bg-surface-2 text-ink text-[17px] font-semibold active:scale-[0.98] transition flex items-center justify-center"
+          href="/join"
+        >
+          Enter a different code
+        </Link>
+      </section>
     );
   }
 

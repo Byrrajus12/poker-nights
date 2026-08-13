@@ -1,813 +1,390 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Check, Ellipsis, Plus, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { formatCents } from "@/lib/utils";
+import { FeltCard } from "@/components/ui/felt-card";
+import { ChipButton } from "@/components/ui/chip-button";
+import { PlayerAvatar } from "@/components/ui/player-avatar";
+import { AmountDisplay } from "@/components/ui/amount-display";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { PotDisplay } from "@/components/ui/pot-display";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { formatCents, formatDuration } from "@/lib/utils";
 import type { Group, GroupMember, Session, SettlementPaymentMethod, Transaction } from "@/types";
 import type { SessionPlayerWithMember } from "./page";
 
-type ActiveSessionProps = {
-  session: Session;
-  group: Group;
-  players: SessionPlayerWithMember[];
-  groupMembers: GroupMember[];
-  initialTransactions: Transaction[];
-  currentUserId: string | null;
-  isBanker: boolean;
-};
+type Props = { session: Session; group: Group; players: SessionPlayerWithMember[]; groupMembers: GroupMember[]; initialTransactions: Transaction[]; currentUserId: string | null; isBanker: boolean };
+type Summary = { buyins: number; cashouts: number; hasCashedOut: boolean; transactions: Transaction[]; method: SettlementPaymentMethod };
+const methods: SettlementPaymentMethod[] = ["venmo", "cashapp", "zelle", "cash"];
+const methodLabel = (method: SettlementPaymentMethod) => method === "cashapp" ? "Cash App" : method.charAt(0).toUpperCase() + method.slice(1);
 
-type PlayerSummary = {
-  buyins: number;
-  cashouts: number;
-  hasCashedOut: boolean;
-  net: number | null;
-  transactions: Transaction[];
-};
+const primaryButton = "h-14 rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:bg-surface-2 disabled:text-ink-3";
+const secondaryButton = "h-14 rounded-full bg-surface-2 text-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:text-ink-3";
+const statLabel = "text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3";
+const sectionLabel = "text-[11px] font-semibold uppercase tracking-[0.10em] text-ink-3";
+const tile = "rounded-3xl bg-surface";
+const moneyInput = "rounded-2xl bg-surface-2 text-right tabular-nums text-[17px] font-semibold text-ink focus:ring-2 focus:ring-accent/30 outline-none";
 
-type BuyinTarget = SessionPlayerWithMember | null;
-type DetailTarget = SessionPlayerWithMember | null;
-const paymentMethods: SettlementPaymentMethod[] = ["venmo", "cashapp", "zelle", "cash"];
-
-function dollarsToCents(value: string): number | null {
-  const trimmed = value.trim().replace(/^\$/, "");
-
-  if (!/^\d+(\.\d{0,2})?$/.test(trimmed)) {
-    return null;
-  }
-
-  const [dollars, cents = ""] = trimmed.split(".");
-  return Number(dollars) * 100 + Number(cents.padEnd(2, "0"));
+function cents(value: string) {
+  const clean = value.trim().replace(/^\$/, "");
+  if (!/^\d+(\.\d{0,2})?$/.test(clean)) return null;
+  const [dollars, fraction = ""] = clean.split(".");
+  return Number(dollars) * 100 + Number(fraction.padEnd(2, "0"));
 }
 
-function formatElapsed(startedAt: string): string {
-  const elapsedMs = Math.max(0, Date.now() - new Date(startedAt).getTime());
-  const totalMinutes = Math.floor(elapsedMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) {
-    return `${minutes}m`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
-function formatTime(timestamp: string): string {
-  return new Date(timestamp).toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatPaymentMethod(method: SettlementPaymentMethod | null): string | null {
-  if (!method) {
-    return null;
-  }
-
-  if (method === "cashapp") {
-    return "CashApp";
-  }
-
-  return method[0].toUpperCase() + method.slice(1);
-}
-
-export function ActiveSession({
-  session,
-  group,
-  players: initialPlayers,
-  groupMembers: initialGroupMembers,
-  initialTransactions,
-  currentUserId,
-  isBanker,
-}: ActiveSessionProps) {
+export function ActiveSession({ session, group, players: initialPlayers, groupMembers: initialMembers, initialTransactions, currentUserId, isBanker }: Props) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+  const reducedMotion = useReducedMotion();
   const [players, setPlayers] = useState(initialPlayers);
-  const [groupMembers, setGroupMembers] = useState(initialGroupMembers);
+  const [members, setMembers] = useState(initialMembers);
   const [transactions, setTransactions] = useState(initialTransactions);
-  const [elapsed, setElapsed] = useState(() => formatElapsed(session.started_at));
-  const [buyinTarget, setBuyinTarget] = useState<BuyinTarget>(null);
-  const [detailTarget, setDetailTarget] = useState<DetailTarget>(null);
-  const [customBuyin, setCustomBuyin] = useState("");
-  const [selectedBuyinMethod, setSelectedBuyinMethod] = useState<SettlementPaymentMethod | null>(null);
-  const [cashoutAmount, setCashoutAmount] = useState("");
-  const [newPlayerName, setNewPlayerName] = useState("");
-  const [showAddPlayer, setShowAddPlayer] = useState(false);
-  const [confirmUndo, setConfirmUndo] = useState<Transaction | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(() => formatDuration(session.started_at));
+  const [customTarget, setCustomTarget] = useState<SessionPlayerWithMember | null>(null);
+  const [detailTarget, setDetailTarget] = useState<SessionPlayerWithMember | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [cashoutMode, setCashoutMode] = useState(false);
+  const [customAmount, setCustomAmount] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState<SettlementPaymentMethod>("venmo");
+  const [cashouts, setCashouts] = useState<Record<string, string>>({});
+  const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-
-  const isActive = session.status === "active";
-  const canManage = isBanker && isActive && currentUserId !== null;
+  const [message, setMessage] = useState("");
+  const [flashed, setFlashed] = useState<string | null>(null);
+  const [pressedChips, setPressedChips] = useState<Set<string>>(new Set());
+  const [undoArmed, setUndoArmed] = useState<string | null>(null);
+  const [heroCollapsed, setHeroCollapsed] = useState(false);
+  const undoTimer = useRef<number | null>(null);
+  const tempIdCounter = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const canManage = isBanker && session.status === "active" && Boolean(currentUserId);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setElapsed(formatElapsed(session.started_at));
-    }, 60000);
-
+    const timer = window.setInterval(() => setElapsed(formatDuration(session.started_at)), 60000);
     return () => window.clearInterval(timer);
   }, [session.started_at]);
 
+  useEffect(() => () => { if (undoTimer.current) window.clearTimeout(undoTimer.current); }, []);
+
+  useEffect(() => {
+    if (cashoutMode) return;
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setHeroCollapsed(!entry.isIntersecting), { rootMargin: "-56px 0px 0px 0px" });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cashoutMode]);
+
+  const disarmUndo = useCallback(() => {
+    if (undoTimer.current) { window.clearTimeout(undoTimer.current); undoTimer.current = null; }
+    setUndoArmed(null);
+  }, []);
+
   const summaries = useMemo(() => {
-    const byMember = new Map<string, PlayerSummary>();
-
-    for (const player of players) {
-      byMember.set(player.member_id, {
-        buyins: 0,
-        cashouts: 0,
-        hasCashedOut: false,
-        net: null,
-        transactions: [],
-      });
-    }
-
-    for (const transaction of transactions) {
-      const summary = byMember.get(transaction.member_id);
-
-      if (!summary) {
-        continue;
-      }
-
+    const map = new Map<string, Summary>();
+    players.forEach((player) => map.set(player.member_id, { buyins: 0, cashouts: 0, hasCashedOut: false, transactions: [], method: "venmo" }));
+    transactions.forEach((transaction) => {
+      const summary = map.get(transaction.member_id); if (!summary) return;
       summary.transactions.push(transaction);
-
-      if (transaction.type === "buyin") {
-        summary.buyins += transaction.amount;
-      } else {
-        summary.cashouts += transaction.amount;
-        summary.hasCashedOut = true;
-      }
-    }
-
-    for (const summary of byMember.values()) {
-      summary.transactions.sort(
-        (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
-      );
-      summary.net = summary.hasCashedOut ? summary.cashouts - summary.buyins : null;
-    }
-
-    return byMember;
+      if (transaction.type === "buyin") { summary.buyins += transaction.amount; if (transaction.payment_method) summary.method = transaction.payment_method; }
+      else { summary.cashouts += transaction.amount; summary.hasCashedOut = true; }
+    });
+    return map;
   }, [players, transactions]);
+  const totalBuyins = [...summaries.values()].reduce((sum, item) => sum + item.buyins, 0);
+  const enteredCashouts = players.reduce((sum, player) => sum + (cents(cashouts[player.member_id] ?? "") ?? 0), 0);
+  const remaining = totalBuyins - enteredCashouts;
+  const seated = new Set(players.map((player) => player.member_id));
+  const available = members.filter((member) => !seated.has(member.id));
 
-  const totalBuyins = transactions.reduce(
-    (total, transaction) => total + (transaction.type === "buyin" ? transaction.amount : 0),
-    0,
-  );
-  const totalCashouts = transactions.reduce(
-    (total, transaction) => total + (transaction.type === "cashout" ? transaction.amount : 0),
-    0,
-  );
-  const seatedMemberIds = new Set(players.map((player) => player.member_id));
-  const availableMembers = groupMembers.filter((member) => !seatedMemberIds.has(member.id));
+  const detailTransactions = detailTarget ? summaries.get(detailTarget.member_id)?.transactions ?? [] : [];
+  const lastTransaction = detailTransactions[detailTransactions.length - 1];
+  const undoIsArmed = Boolean(lastTransaction && undoArmed === lastTransaction.id);
 
-  function getMostRecentBuyinMethod(memberId: string): SettlementPaymentMethod | null {
-    const buyins = transactions
-      .filter((transaction) => transaction.member_id === memberId && transaction.type === "buyin")
-      .sort(
-        (left, right) =>
-          new Date(right.created_at).getTime() - new Date(left.created_at).getTime(),
-      );
+  const openCustom = useCallback((player: SessionPlayerWithMember) => {
+    setSelectedMethod(summaries.get(player.member_id)?.method ?? "venmo"); setCustomAmount(""); setCustomTarget(player);
+  }, [summaries]);
 
-    return buyins[0]?.payment_method ?? null;
-  }
-
-  function openBuyinModal(player: SessionPlayerWithMember) {
-    setSelectedBuyinMethod(getMostRecentBuyinMethod(player.member_id));
-    setBuyinTarget(player);
-  }
-
-  async function addTransaction(
-    memberId: string,
-    type: "buyin" | "cashout",
-    amount: number,
-    paymentMethod: SettlementPaymentMethod | null = null,
-  ) {
-    if (!currentUserId) {
-      setMessage("You need to be signed in to manage this session.");
-      return false;
-    }
-
-    if (amount <= 0) {
-      setMessage("Enter an amount greater than $0.");
-      return false;
-    }
-
-    setBusy(`${type}-${memberId}`);
-    setMessage(null);
-
-    const { data, error } = await supabase
-      .from("transactions")
-      .insert({
-        session_id: session.id,
-        member_id: memberId,
-        type,
-        amount,
-        created_by: currentUserId,
-        payment_method: type === "buyin" ? paymentMethod : null,
-      })
-      .select("id,session_id,member_id,type,amount,created_by,created_at,payment_method")
-      .single();
-
+  async function addBuyin(player: SessionPlayerWithMember, amount: number, method = summaries.get(player.member_id)?.method ?? "venmo") {
+    if (!currentUserId || busy) return;
+    tempIdCounter.current += 1;
+    const tempId = `temp-${tempIdCounter.current}`;
+    const optimistic: Transaction = { id: tempId, session_id: session.id, member_id: player.member_id, type: "buyin", amount, created_by: currentUserId, created_at: session.started_at, payment_method: method };
+    setMessage(""); setFlashed(player.member_id); setTransactions((current) => [...current, optimistic]); setBusy(`buyin-${player.member_id}`);
+    window.setTimeout(() => setFlashed(null), 550);
+    const { data, error } = await supabase.from("transactions").insert({ session_id: session.id, member_id: player.member_id, type: "buyin", amount, created_by: currentUserId, payment_method: method }).select("id,session_id,member_id,type,amount,created_by,created_at,payment_method").single();
     setBusy(null);
-
-    if (error) {
-      setMessage(error.message);
-      return false;
-    }
-
-    setTransactions((current) => [...current, data]);
-    return true;
+    if (error) { setTransactions((current) => current.filter((item) => item.id !== tempId)); setMessage(error.message); return; }
+    setTransactions((current) => current.map((item) => item.id === tempId ? data : item));
   }
 
-  async function handlePresetBuyin(player: SessionPlayerWithMember, amount: number) {
-    if (!selectedBuyinMethod) {
-      setMessage("Choose how the player paid first.");
-      return;
-    }
-
-    const didAdd = await addTransaction(player.member_id, "buyin", amount, selectedBuyinMethod);
-
-    if (didAdd) {
-      setBuyinTarget(null);
-      setCustomBuyin("");
-      setSelectedBuyinMethod(null);
-    }
+  function handlePresetTap(player: SessionPlayerWithMember, amount: number) {
+    const key = `${player.member_id}-${amount}`;
+    setPressedChips((current) => new Set(current).add(key));
+    window.setTimeout(() => setPressedChips((current) => { const next = new Set(current); next.delete(key); return next; }), 450);
+    void addBuyin(player, amount);
   }
 
-  async function handleCustomBuyin() {
-    if (!buyinTarget) {
-      return;
-    }
-
-    if (!selectedBuyinMethod) {
-      setMessage("Choose how the player paid first.");
-      return;
-    }
-
-    const amount = dollarsToCents(customBuyin);
-
-    if (amount === null) {
-      setMessage("Use a dollar amount like 20 or 20.50.");
-      return;
-    }
-
-    const didAdd = await addTransaction(
-      buyinTarget.member_id,
-      "buyin",
-      amount,
-      selectedBuyinMethod,
-    );
-
-    if (didAdd) {
-      setBuyinTarget(null);
-      setCustomBuyin("");
-      setSelectedBuyinMethod(null);
-    }
+  async function addCustomBuyin() {
+    if (!customTarget) return;
+    const amount = cents(customAmount);
+    if (!amount || amount <= 0) { setMessage("Enter a valid amount greater than $0."); return; }
+    await addBuyin(customTarget, amount, selectedMethod); setCustomTarget(null);
   }
 
-  async function handleCashout() {
-    if (!detailTarget) {
+  async function undoLast() {
+    if (!detailTarget) return;
+    const history = summaries.get(detailTarget.member_id)?.transactions ?? [];
+    const last = history[history.length - 1]; if (!last || last.id.startsWith("temp-")) return;
+    if (undoArmed !== last.id) {
+      if (undoTimer.current) window.clearTimeout(undoTimer.current);
+      setUndoArmed(last.id);
+      undoTimer.current = window.setTimeout(() => { undoTimer.current = null; setUndoArmed(null); }, 3000);
       return;
     }
-
-    const amount = dollarsToCents(cashoutAmount);
-
-    if (amount === null) {
-      setMessage("Use a dollar amount like 120 or 120.50.");
-      return;
-    }
-
-    const didAdd = await addTransaction(detailTarget.member_id, "cashout", amount);
-
-    if (didAdd) {
-      setCashoutAmount("");
-    }
+    disarmUndo();
+    setBusy(`undo-${last.id}`);
+    const { error } = await supabase.from("transactions").delete().eq("id", last.id);
+    setBusy(null); if (error) setMessage(error.message); else setTransactions((current) => current.filter((item) => item.id !== last.id));
   }
 
-  async function undoTransaction(transaction: Transaction) {
-    setBusy(`undo-${transaction.id}`);
-    setMessage(null);
-
-    const { error } = await supabase.from("transactions").delete().eq("id", transaction.id);
-
-    setBusy(null);
-    setConfirmUndo(null);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setTransactions((current) => current.filter((item) => item.id !== transaction.id));
-  }
-
-  async function addExistingPlayer(member: GroupMember) {
+  async function addExisting(member: GroupMember) {
     setBusy(`player-${member.id}`);
-    setMessage(null);
-
-    const { data, error } = await supabase
-      .from("session_players")
-      .insert({
-        session_id: session.id,
-        member_id: member.id,
-      })
-      .select("id,session_id,member_id,joined_at")
-      .single();
-
-    setBusy(null);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    setPlayers((current) => [
-      ...current,
-      {
-        ...data,
-        member: {
-          id: member.id,
-          display_name: member.display_name,
-        },
-      },
-    ]);
-    setShowAddPlayer(false);
+    const { data, error } = await supabase.from("session_players").insert({ session_id: session.id, member_id: member.id }).select("id,session_id,member_id,joined_at").single();
+    setBusy(null); if (error) { setMessage(error.message); return; }
+    setPlayers((current) => [...current, { ...data, member: { id: member.id, display_name: member.display_name } }]); setAddOpen(false);
   }
 
-  async function addBrandNewPlayer() {
-    const displayName = newPlayerName.trim();
-
-    if (!displayName) {
-      setMessage("Enter a player name.");
-      return;
-    }
-
+  async function addNew(event: FormEvent) {
+    event.preventDefault(); const name = newName.trim(); if (!name) return;
     setBusy("new-player");
-    setMessage(null);
-
-    const { data: member, error: memberError } = await supabase
-      .from("group_members")
-      .insert({
-        group_id: group.id,
-        display_name: displayName,
-      })
-      .select("id,group_id,user_id,display_name,role,is_claimed,created_at")
-      .single();
-
-    if (memberError) {
-      setBusy(null);
-      setMessage(memberError.message);
-      return;
-    }
-
-    const { data: sessionPlayer, error: playerError } = await supabase
-      .from("session_players")
-      .insert({
-        session_id: session.id,
-        member_id: member.id,
-      })
-      .select("id,session_id,member_id,joined_at")
-      .single();
-
-    setBusy(null);
-
-    if (playerError) {
-      setMessage(playerError.message);
-      return;
-    }
-
-    setGroupMembers((current) => [...current, member]);
-    setPlayers((current) => [
-      ...current,
-      {
-        ...sessionPlayer,
-        member: {
-          id: member.id,
-          display_name: member.display_name,
-        },
-      },
-    ]);
-    setNewPlayerName("");
-    setShowAddPlayer(false);
+    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,created_at").single();
+    if (error) { setBusy(null); setMessage(error.message); return; }
+    setMembers((current) => [...current, member]); setNewName(""); await addExisting(member);
   }
 
-  async function endSession() {
-    const playersMissingCashout = players.filter(
-      (player) => !summaries.get(player.member_id)?.hasCashedOut,
-    );
-
-    if (playersMissingCashout.length > 0) {
-      setMessage(
-        `Cash out first: ${playersMissingCashout
-          .map((player) => player.member.display_name)
-          .join(", ")}.`,
-      );
-      return;
-    }
-
-    const discrepancy = totalCashouts - totalBuyins;
-
-    if (discrepancy !== 0) {
-      setMessage(
-        discrepancy < 0
-          ? `Cashouts are ${formatCents(Math.abs(discrepancy))} short.`
-          : `Cashouts are ${formatCents(discrepancy)} over.`,
-      );
-      return;
-    }
-
-    setBusy("end-session");
-    setMessage(null);
-
-    const { error } = await supabase
-      .from("sessions")
-      .update({ ended_at: new Date().toISOString(), status: "settling" })
-      .eq("id", session.id);
-
-    setBusy(null);
-
-    if (error) {
-      setMessage(error.message);
-      return;
-    }
-
-    router.push(`/groups/${group.id}/sessions/${session.id}/settle`);
+  function startCashout() {
+    setCashouts(Object.fromEntries(players.map((player) => [player.member_id, summaries.get(player.member_id)?.hasCashedOut ? String((summaries.get(player.member_id)?.cashouts ?? 0) / 100) : ""]))); setCashoutMode(true); setMessage("");
   }
+
+  async function confirmCashouts() {
+    if (!currentUserId || remaining !== 0) return;
+    const rows = players.flatMap((player) => {
+      const amount = cents(cashouts[player.member_id] ?? "") ?? 0;
+      return amount > 0 && !summaries.get(player.member_id)?.hasCashedOut ? [{ session_id: session.id, member_id: player.member_id, type: "cashout" as const, amount, created_by: currentUserId, payment_method: null }] : [];
+    });
+    setBusy("cashout"); setMessage("");
+    if (rows.length) { const { error } = await supabase.from("transactions").insert(rows); if (error) { setBusy(null); setMessage(error.message); return; } }
+    const { error } = await supabase.from("sessions").update({ ended_at: new Date().toISOString(), status: "settling" }).eq("id", session.id);
+    setBusy(null); if (error) { setMessage(error.message); return; }
+    router.push(`/groups/${group.id}/sessions/${session.id}/settle`); router.refresh();
+  }
+
+  const errorBanner = message ? <p className="rounded-2xl bg-surface-2 p-3 text-sm text-danger">{message}</p> : null;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 pb-28 text-zinc-100">
-      <header className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-zinc-500">{group.name}</p>
-            <h1 className="mt-1 text-3xl font-semibold text-zinc-50">Active session</h1>
-          </div>
-          <span className="rounded-md border border-emerald-800 bg-emerald-950 px-3 py-2 text-sm font-medium capitalize text-emerald-200">
-            {session.status}
-          </span>
-        </div>
+    <AnimatePresence initial={false} mode="wait">
+      {cashoutMode ? (
+        <motion.div animate={{ opacity: 1 }} className="pb-40" exit={{ opacity: 0 }} initial={{ opacity: 0 }} key="cashout" transition={{ duration: 0.18, ease: "easeOut" }}>
+          <button className="-ml-1 flex h-11 items-center px-1 text-[15px] font-medium text-ink-2" onClick={() => setCashoutMode(false)} type="button">Cancel</button>
 
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-md border border-zinc-800 bg-zinc-900 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Pot</p>
-            <p className="mt-1 text-xl font-semibold text-zinc-50">{formatCents(totalBuyins)}</p>
-          </div>
-          <div className="rounded-md border border-zinc-800 bg-zinc-900 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Time</p>
-            <p className="mt-1 text-xl font-semibold text-zinc-50">{elapsed}</p>
-          </div>
-          <div className="rounded-md border border-zinc-800 bg-zinc-900 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Players</p>
-            <p className="mt-1 text-xl font-semibold text-zinc-50">{players.length}</p>
-          </div>
-        </div>
-      </header>
+          <FeltCard className="mt-1" variant="cooled">
+            <div className="px-[22px] py-[22px] text-center">
+              <p className="font-serif-accent text-[17px] text-on-felt-dim">cashing out</p>
+              <PotDisplay amount={totalBuyins} className="mt-1 text-on-felt" />
+            </div>
+          </FeltCard>
 
-      {message ? (
-        <div className="rounded-md border border-amber-700 bg-amber-950/70 p-4 text-sm text-amber-100">
-          {message}
-        </div>
-      ) : null}
+          <h1 className="mt-5 text-[28px] font-bold tracking-tight text-ink">Cash out</h1>
+          <p className="mt-1 text-[13px] text-ink-2">Enter each player&apos;s final chip count.</p>
 
-      <section className="space-y-3">
-        {players.map((player) => {
-          const summary = summaries.get(player.member_id);
-          const isBusy = busy === `buyin-${player.member_id}`;
-
-          return (
-            <button
-              className="w-full rounded-md border border-zinc-800 bg-zinc-900 p-4 text-left transition hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              key={player.id}
-              onClick={() => setDetailTarget(player)}
-              type="button"
-            >
-              <div className="flex min-h-16 items-center gap-4">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-lg font-semibold text-zinc-50">
-                    {player.member.display_name}
-                  </p>
-                  <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-zinc-500">Buyins</p>
-                      <p className="text-lg font-semibold text-zinc-100">
-                        {formatCents(summary?.buyins ?? 0)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-zinc-500">Cashout</p>
-                      <p className="text-lg font-semibold text-zinc-100">
-                        {summary?.hasCashedOut ? formatCents(summary.cashouts) : "Open"}
-                      </p>
-                    </div>
+          <section className={`${tile} mt-5`}>
+            {players.map((player, index) => {
+              const summary = summaries.get(player.member_id);
+              return (
+                <div className={`flex items-center gap-3 p-3.5 ${index > 0 ? "border-t border-line" : ""} ${summary?.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
+                  <PlayerAvatar name={player.member.display_name} size="md" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-ink">{player.member.display_name}</p>
+                    <p className="text-[13px] tabular-nums text-ink-2">In {formatCents(summary?.buyins ?? 0)}</p>
                   </div>
-                  {summary?.net !== null && summary?.net !== undefined ? (
-                    <p
-                      className={`mt-2 text-lg font-semibold ${
-                        summary.net >= 0 ? "text-emerald-300" : "text-red-300"
-                      }`}
-                    >
-                      Net {summary.net >= 0 ? "+" : ""}
-                      {formatCents(summary.net)}
-                    </p>
-                  ) : null}
-                </div>
-                {canManage ? (
-                  <button
-                    aria-label={`Add buyin for ${player.member.display_name}`}
-                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-3xl font-semibold text-zinc-950 shadow-lg shadow-emerald-950/50 transition hover:bg-emerald-400 disabled:opacity-60"
-                    disabled={isBusy}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openBuyinModal(player);
-                    }}
-                    type="button"
-                  >
-                    +
-                  </button>
-                ) : null}
-              </div>
-            </button>
-          );
-        })}
-      </section>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        {canManage ? (
-          <>
-            <button
-              className="min-h-12 flex-1 rounded-md border border-zinc-700 px-4 font-medium text-zinc-100 hover:border-zinc-500"
-              onClick={() => setShowAddPlayer(true)}
-              type="button"
-            >
-              Add player
-            </button>
-            <button
-              className="min-h-12 flex-1 rounded-md bg-red-500 px-4 font-semibold text-white hover:bg-red-400 disabled:opacity-60"
-              disabled={busy === "end-session"}
-              onClick={endSession}
-              type="button"
-            >
-              End session
-            </button>
-          </>
-        ) : (
-          <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4 text-sm text-zinc-400">
-            Read-only view. Only the banker can manage buyins and cashouts.
-          </div>
-        )}
-      </div>
-
-      {buyinTarget ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-3 sm:items-center sm:justify-center">
-          <div className="w-full max-w-md rounded-md border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-zinc-500">Add buyin</p>
-                <h2 className="text-2xl font-semibold text-zinc-50">
-                  {buyinTarget.member.display_name}
-                </h2>
-              </div>
-              <button
-                className="min-h-12 rounded-md px-3 text-zinc-400 hover:text-zinc-100"
-                onClick={() => {
-                  setBuyinTarget(null);
-                  setSelectedBuyinMethod(null);
-                }}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              {paymentMethods.map((method) => (
-                <button
-                  className={`min-h-12 flex-1 rounded-md border px-2 text-sm font-semibold ${
-                    selectedBuyinMethod === method
-                      ? "border-emerald-400 bg-emerald-500 text-zinc-950"
-                      : "border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500"
-                  }`}
-                  key={method}
-                  onClick={() => setSelectedBuyinMethod(method)}
-                  type="button"
-                >
-                  {formatPaymentMethod(method)}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              {group.buyin_presets.map((amount) => (
-                <button
-                  className="min-h-16 rounded-md bg-emerald-500 px-4 text-xl font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-60"
-                  disabled={busy === `buyin-${buyinTarget.member_id}` || !selectedBuyinMethod}
-                  key={amount}
-                  onClick={() => handlePresetBuyin(buyinTarget, amount)}
-                  type="button"
-                >
-                  {formatCents(amount)}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-5 flex gap-2">
-              <input
-                className="min-h-12 min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-4 text-lg text-zinc-100 outline-none focus:border-emerald-500"
-                inputMode="decimal"
-                onChange={(event) => setCustomBuyin(event.target.value)}
-                placeholder="Custom"
-                value={customBuyin}
-              />
-              <button
-                className="min-h-12 rounded-md bg-zinc-100 px-5 font-semibold text-zinc-950 hover:bg-white disabled:opacity-60"
-                disabled={busy === `buyin-${buyinTarget.member_id}` || !selectedBuyinMethod}
-                onClick={handleCustomBuyin}
-                type="button"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {detailTarget ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-3 sm:items-center sm:justify-center">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-zinc-500">Player</p>
-                <h2 className="text-2xl font-semibold text-zinc-50">
-                  {detailTarget.member.display_name}
-                </h2>
-              </div>
-              <button
-                className="min-h-12 rounded-md px-3 text-zinc-400 hover:text-zinc-100"
-                onClick={() => {
-                  setDetailTarget(null);
-                  setCashoutAmount("");
-                }}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="mt-5 space-y-2">
-              {(summaries.get(detailTarget.member_id)?.transactions ?? []).length > 0 ? (
-                summaries.get(detailTarget.member_id)?.transactions.map((transaction) => (
-                  <div
-                    className="flex min-h-12 items-center justify-between rounded-md bg-zinc-900 px-4"
-                    key={transaction.id}
-                  >
-                    <div>
-                      <p className="font-medium capitalize text-zinc-100">{transaction.type}</p>
-                      <p className="text-sm text-zinc-500">
-                        {formatTime(transaction.created_at)}
-                        {transaction.type === "buyin" && transaction.payment_method
-                          ? ` via ${formatPaymentMethod(transaction.payment_method)}`
-                          : ""}
-                      </p>
-                    </div>
-                    <p
-                      className={`text-lg font-semibold ${
-                        transaction.type === "buyin" ? "text-zinc-100" : "text-emerald-300"
-                      }`}
-                    >
-                      {formatCents(transaction.amount)}
-                    </p>
+                  <ChipButton aria-label={`Zero for ${player.member.display_name}`} disabled={summary?.hasCashedOut} onClick={() => setCashouts((current) => ({ ...current, [player.member_id]: "0" }))}>0</ChipButton>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-ink-3">$</span>
+                    <input aria-label={`${player.member.display_name} cashout`} className={`${moneyInput} h-12 w-28 pl-7 pr-3`} disabled={summary?.hasCashedOut} inputMode="decimal" onChange={(event) => setCashouts((current) => ({ ...current, [player.member_id]: event.target.value }))} placeholder="0" value={cashouts[player.member_id] ?? ""} />
                   </div>
-                ))
-              ) : (
-                <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4 text-zinc-400">
-                  No transactions yet.
                 </div>
-              )}
-            </div>
+              );
+            })}
+          </section>
 
-            {canManage ? (
-              <div className="mt-5 space-y-3">
-                <div className="flex gap-2">
-                  <input
-                    className="min-h-12 min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-4 text-lg text-zinc-100 outline-none focus:border-emerald-500"
-                    inputMode="decimal"
-                    onChange={(event) => setCashoutAmount(event.target.value)}
-                    placeholder="Cashout"
-                    value={cashoutAmount}
-                  />
-                  <button
-                    className="min-h-12 rounded-md bg-emerald-500 px-5 font-semibold text-zinc-950 hover:bg-emerald-400 disabled:opacity-60"
-                    disabled={busy === `cashout-${detailTarget.member_id}`}
-                    onClick={handleCashout}
-                    type="button"
+          {message ? <div className="mt-4">{errorBanner}</div> : null}
+
+          <footer className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/78 backdrop-blur-xl">
+            <div className="mx-auto max-w-md px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              <div className="mb-3 flex items-center justify-between text-[13px] text-ink-2">
+                <span className="flex items-center gap-1.5"><span className={statLabel}>Buy-ins</span><AmountDisplay amount={totalBuyins} size="sm" /></span>
+                <span className="flex items-center gap-1.5"><span className={statLabel}>Entered</span><AmountDisplay amount={enteredCashouts} size="sm" /></span>
+                <span className="flex items-center gap-1.5">
+                  <span className={statLabel}>Left</span>
+                  <motion.span
+                    animate={remaining === 0 && !reducedMotion ? { scale: [1, 1.06, 1] } : undefined}
+                    className="flex items-center gap-1 text-[13px] font-semibold tabular-nums"
+                    key={remaining === 0 ? "balanced" : "unbalanced"}
+                    transition={{ duration: 0.3 }}
                   >
-                    Cash out
-                  </button>
-                </div>
-
-                <button
-                  className="min-h-12 w-full rounded-md border border-red-800 px-4 font-medium text-red-200 hover:border-red-500 disabled:opacity-50"
-                  disabled={(summaries.get(detailTarget.member_id)?.transactions.length ?? 0) === 0}
-                  onClick={() => {
-                    const playerTransactions =
-                      summaries.get(detailTarget.member_id)?.transactions ?? [];
-                    setConfirmUndo(playerTransactions[playerTransactions.length - 1] ?? null);
-                  }}
-                  type="button"
-                >
-                  Undo last
-                </button>
+                    {remaining === 0 ? (
+                      <>
+                        <Check aria-hidden className="text-positive" size={14} />
+                        <span className="text-positive">Balanced</span>
+                      </>
+                    ) : (
+                      <AmountDisplay amount={remaining} colored size="sm" />
+                    )}
+                  </motion.span>
+                </span>
               </div>
+              <button className={`${primaryButton} w-full`} disabled={remaining !== 0 || busy === "cashout"} onClick={confirmCashouts} type="button">{busy === "cashout" ? "Ending…" : "End session"}</button>
+            </div>
+          </footer>
+        </motion.div>
+      ) : (
+        <motion.div animate={{ opacity: 1 }} className="pb-28" exit={{ opacity: 0 }} initial={{ opacity: 0 }} key="live" transition={{ duration: 0.18, ease: "easeOut" }}>
+          <FeltCard variant="live">
+            <div className="px-[22px] py-[26px] text-center">
+              <div className="flex justify-center"><StatusBadge onFelt status="active" /></div>
+              <p className="font-serif-accent mt-3.5 text-[17px] text-on-felt-dim">tonight&apos;s pot</p>
+              <PotDisplay amount={totalBuyins} className="mt-1 text-on-felt" />
+              <p className="mt-2 text-[13px] tabular-nums text-on-felt-dim">
+                {players.length} {players.length === 1 ? "player" : "players"} · {elapsed}
+              </p>
+            </div>
+          </FeltCard>
+          <div aria-hidden className="h-px" ref={sentinelRef} />
+
+          <AnimatePresence>
+            {heroCollapsed ? (
+              <motion.div
+                animate={{ opacity: 1 }}
+                className="sticky top-14 z-30 -mx-4 flex items-center justify-center gap-2 border-b border-line bg-bg/78 px-4 py-2.5 backdrop-blur-xl"
+                exit={{ opacity: 0 }}
+                initial={{ opacity: 0 }}
+                transition={{ duration: reducedMotion ? 0 : 0.15 }}
+              >
+                <span aria-hidden className="animate-live-pulse inline-block size-1.5 rounded-full bg-positive" />
+                <AmountDisplay amount={totalBuyins} size="lg" />
+              </motion.div>
             ) : null}
-          </div>
-        </div>
-      ) : null}
+          </AnimatePresence>
 
-      {showAddPlayer ? (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/70 p-3 sm:items-center sm:justify-center">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-md border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm text-zinc-500">Session roster</p>
-                <h2 className="text-2xl font-semibold text-zinc-50">Add player</h2>
-              </div>
-              <button
-                className="min-h-12 rounded-md px-3 text-zinc-400 hover:text-zinc-100"
-                onClick={() => setShowAddPlayer(false)}
-                type="button"
-              >
-                Close
-              </button>
-            </div>
+          <p className="mt-4 text-[13px] text-ink-3">{group.name}</p>
+          <p className={`${sectionLabel} mt-4`}>At the table</p>
 
-            <div className="mt-5 space-y-2">
-              {availableMembers.length > 0 ? (
-                availableMembers.map((member) => (
-                  <button
-                    className="flex min-h-12 w-full items-center justify-between rounded-md bg-zinc-900 px-4 text-left font-medium text-zinc-100 hover:bg-zinc-800 disabled:opacity-60"
-                    disabled={busy === `player-${member.id}`}
-                    key={member.id}
-                    onClick={() => addExistingPlayer(member)}
-                    type="button"
-                  >
-                    <span>{member.display_name}</span>
-                    <span className="text-zinc-500">Add</span>
+          {message ? <div className="mt-3">{errorBanner}</div> : null}
+
+          <section className={`${tile} mt-2.5`}>
+            {players.map((player, index) => {
+              const summary = summaries.get(player.member_id)!;
+              const net = summary.cashouts - summary.buyins;
+              return (
+                <article className={`p-3.5 transition ${index > 0 ? "border-t border-line" : ""} ${flashed === player.member_id ? "animate-row-flash" : ""} ${summary.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
+                  <button className="flex min-h-11 w-full min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setDetailTarget(player)} type="button">
+                    <PlayerAvatar name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold text-ink">{player.member.display_name}</span>
+                      {summary.hasCashedOut
+                        ? <span className="mt-0.5 flex items-center gap-1 text-[13px] tabular-nums text-ink-2">Out {formatCents(summary.cashouts)} · <AmountDisplay amount={net} colored showSign size="sm" /></span>
+                        : <span className="mt-0.5 block text-[13px] tabular-nums text-ink-2">In {formatCents(summary.buyins)}</span>}
+                    </span>
                   </button>
-                ))
-              ) : (
-                <div className="rounded-md border border-zinc-800 bg-zinc-900 p-4 text-zinc-400">
-                  Everyone in the roster is already seated.
+                  {canManage && !summary.hasCashedOut ? (
+                    <div className="mt-3 flex gap-2">
+                      {group.buyin_presets.map((amount) => {
+                        const key = `${player.member_id}-${amount}`;
+                        return (
+                          <ChipButton aria-label={`Add ${formatCents(amount)} for ${player.member.display_name}`} className="flex-1" disabled={Boolean(busy)} key={amount} onClick={() => handlePresetTap(player, amount)} pressed={pressedChips.has(key)}>
+                            {formatCents(amount).replace(".00", "")}
+                          </ChipButton>
+                        );
+                      })}
+                      <ChipButton aria-label="Custom amount" onClick={() => openCustom(player)}>
+                        <Ellipsis size={16} />
+                      </ChipButton>
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </section>
+
+          {canManage ? (
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/78 backdrop-blur-xl">
+              <div className="mx-auto flex max-w-md gap-3 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                <button className={`${secondaryButton} flex-1`} onClick={() => setAddOpen(true)} type="button">Add player</button>
+                <button className={`${primaryButton} flex-[1.6]`} onClick={startCashout} type="button">Cash out</button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-center text-[13px] text-ink-2">View only. The banker manages this session.</p>
+          )}
+
+          <BottomSheet onClose={() => setCustomTarget(null)} open={Boolean(customTarget)} title={customTarget?.member.display_name ?? "Buy-in"}>
+            <div className="flex rounded-2xl bg-surface-2 p-1">
+              {methods.map((method) => (
+                <button className={`flex-1 h-9 rounded-xl text-[13px] font-semibold transition ${selectedMethod === method ? "bg-surface-3 text-ink" : "text-ink-2"}`} key={method} onClick={() => setSelectedMethod(method)} type="button">{methodLabel(method)}</button>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-2">
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[17px] text-ink-3">$</span>
+                <input autoFocus className={`${moneyInput} h-14 w-full pl-9 pr-4 text-[22px]`} inputMode="decimal" onChange={(event) => setCustomAmount(event.target.value)} placeholder="0" value={customAmount} />
+              </div>
+              <button className={`${primaryButton} w-auto px-6`} onClick={addCustomBuyin} type="button">Add</button>
+            </div>
+          </BottomSheet>
+
+          <BottomSheet onClose={() => { setDetailTarget(null); disarmUndo(); }} open={Boolean(detailTarget)} title={detailTarget?.member.display_name ?? "Player"}>
+            <div className="divide-y divide-line">
+              {detailTransactions.map((transaction) => (
+                <div className="flex items-center justify-between py-3" key={transaction.id}>
+                  <div>
+                    <p className="text-[15px] font-medium capitalize text-ink">{transaction.type}</p>
+                    <p className="text-[13px] text-ink-2">{new Date(transaction.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}{transaction.payment_method ? ` · ${methodLabel(transaction.payment_method)}` : ""}</p>
+                  </div>
+                  <AmountDisplay amount={transaction.amount} size="md" />
                 </div>
-              )}
+              ))}
             </div>
+            {detailTarget && !detailTransactions.length ? <p className="py-3 text-[13px] text-ink-2">No transactions yet.</p> : null}
+            {canManage ? (
+              <button className="mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-surface-2 text-[15px] font-semibold text-danger disabled:opacity-40" disabled={!detailTarget || !detailTransactions.length || Boolean(busy)} onClick={undoLast} type="button">
+                <Undo2 aria-hidden size={18} />
+                {undoIsArmed && lastTransaction ? `Confirm undo · ${formatCents(lastTransaction.amount)}` : "Undo last"}
+              </button>
+            ) : null}
+          </BottomSheet>
 
-            <div className="mt-5 flex gap-2">
-              <input
-                className="min-h-12 min-w-0 flex-1 rounded-md border border-zinc-700 bg-zinc-900 px-4 text-lg text-zinc-100 outline-none focus:border-emerald-500"
-                onChange={(event) => setNewPlayerName(event.target.value)}
-                placeholder="New player"
-                value={newPlayerName}
-              />
-              <button
-                className="min-h-12 rounded-md bg-zinc-100 px-5 font-semibold text-zinc-950 hover:bg-white disabled:opacity-60"
-                disabled={busy === "new-player"}
-                onClick={addBrandNewPlayer}
-                type="button"
-              >
-                Add
-              </button>
+          <BottomSheet onClose={() => setAddOpen(false)} open={addOpen} title="Add player">
+            <div className="divide-y divide-line">
+              {available.map((member) => (
+                <button className="flex h-14 w-full items-center gap-3 text-left" disabled={Boolean(busy)} key={member.id} onClick={() => addExisting(member)} type="button">
+                  <PlayerAvatar name={member.display_name} size="sm" />
+                  <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{member.display_name}</span>
+                  <Plus aria-hidden className="text-accent" size={20} />
+                </button>
+              ))}
             </div>
-          </div>
-        </div>
-      ) : null}
-
-      {confirmUndo ? (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
-          <div className="w-full max-w-sm rounded-md border border-zinc-800 bg-zinc-950 p-5 shadow-2xl">
-            <h2 className="text-xl font-semibold text-zinc-50">Undo transaction?</h2>
-            <p className="mt-2 text-zinc-400">
-              Remove the last {confirmUndo.type} for {formatCents(confirmUndo.amount)}.
-            </p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              <button
-                className="min-h-12 rounded-md border border-zinc-700 px-4 font-medium text-zinc-100 hover:border-zinc-500"
-                onClick={() => setConfirmUndo(null)}
-                type="button"
-              >
-                Cancel
-              </button>
-              <button
-                className="min-h-12 rounded-md bg-red-500 px-4 font-semibold text-white hover:bg-red-400 disabled:opacity-60"
-                disabled={busy === `undo-${confirmUndo.id}`}
-                onClick={() => undoTransaction(confirmUndo)}
-                type="button"
-              >
-                Undo
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
+            {!available.length ? <p className="py-3 text-[13px] text-ink-2">Everyone is already seated.</p> : null}
+            <form className="mt-4 flex gap-2 border-t border-line pt-4" onSubmit={addNew}>
+              <input className="h-14 min-w-0 flex-1 rounded-2xl bg-surface-2 px-4 text-[17px] text-ink focus:ring-2 focus:ring-accent/30 outline-none" onChange={(event) => setNewName(event.target.value)} placeholder="Name" value={newName} />
+              <button className={`${secondaryButton} w-auto px-5`} disabled={!newName.trim() || Boolean(busy)}>Add</button>
+            </form>
+          </BottomSheet>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }

@@ -30,9 +30,9 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
     profile?.display_name || user.user_metadata?.display_name || profile?.email || user.email || "Player";
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-dvh bg-bg text-ink">
       <MainNav displayName={displayName} />
-      <main className="mx-auto w-full max-w-5xl px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-md px-4 pt-6 pb-24">{children}</main>
     </div>
   );
 }

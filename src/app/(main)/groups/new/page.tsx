@@ -1,7 +1,9 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const INVITE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -105,38 +107,43 @@ export default function NewGroupPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-6">
+    <div className="space-y-7">
+      <Link className="inline-flex h-11 items-center gap-1 text-[15px] font-medium text-ink-2" href="/dashboard">
+        <ChevronLeft className="h-5 w-5" />
+        Back
+      </Link>
+
       <div>
-        <h1 className="text-3xl font-semibold text-zinc-50">Create group</h1>
-        <p className="mt-2 text-zinc-400">Name your poker crew and get an invite code.</p>
+        <h1 className="text-[30px] font-bold tracking-[-0.02em] text-ink">Create a group</h1>
+        <p className="mt-1 text-[15px] text-ink-2">You&apos;ll get an invite code to share.</p>
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-zinc-200" htmlFor="group-name">
+          <label className="block text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3" htmlFor="group-name">
             Group name
           </label>
           <input
             autoComplete="off"
-            className="h-12 w-full rounded-md border border-zinc-700 bg-zinc-900 px-4 text-base text-zinc-50 outline-none placeholder:text-zinc-500 focus:border-zinc-400"
+            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-accent/30"
             id="group-name"
             maxLength={80}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Friday Night Poker"
+            placeholder="Friday night game"
             required
             type="text"
             value={name}
           />
         </div>
 
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
+        {error ? <p className="rounded-2xl bg-surface-2 p-3 text-sm text-danger">{error}</p> : null}
 
         <button
-          className="min-h-12 w-full rounded-md bg-zinc-100 px-5 font-medium text-zinc-950 disabled:cursor-not-allowed disabled:opacity-70"
+          className="h-14 w-full rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:bg-surface-2 disabled:text-ink-3"
           disabled={isLoading || !name.trim()}
           type="submit"
         >
-          {isLoading ? "Creating..." : "Create group"}
+          {isLoading ? "Creating…" : "Create group"}
         </button>
       </form>
     </div>

@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { calculateSettlements } from "@/lib/settlements";
 import type { GroupMember, Settlement, SettlementPaymentMethod, Transaction } from "@/types";
-import { SettlementView, type SettlementViewItem } from "./settlement-view";
+import { SettlementView, type PlayerResultItem, type SettlementViewItem } from "./settlement-view";
 
 type PlayerCashout = {
   memberId: string;
@@ -161,6 +161,13 @@ export default async function SettleSessionPage({
       preferredPaymentHandle: paymentInfo.preferredPaymentHandle,
     };
   });
+  const playerResults: PlayerResultItem[] = players.map((player) => ({
+    memberId: player.memberId,
+    displayName: player.displayName,
+    buyinTotal: player.buyinTotal,
+    cashoutTotal: player.cashoutTotal,
+    net: player.cashoutTotal - player.buyinTotal,
+  }));
 
   return (
     <SettlementView
@@ -171,6 +178,9 @@ export default async function SettleSessionPage({
       isSettled={session.status === "settled"}
       sessionId={sessionId}
       settlements={viewSettlements}
+      startedAt={session.started_at}
+      endedAt={session.ended_at}
+      playerResults={playerResults}
     />
   );
 }

@@ -1,26 +1,223 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: oklch(0.125 0.005 80);
+  --surface: oklch(0.165 0.006 80);
+  --surface-2: oklch(0.205 0.007 80);
+  --surface-3: oklch(0.25 0.008 80);
+  --line: oklch(1 0 0 / 0.06);
+  --line-2: oklch(1 0 0 / 0.13);
+  --ink: oklch(0.965 0.004 85);
+  --ink-2: oklch(0.72 0.012 80);
+  --ink-3: oklch(0.55 0.012 80);
+  --felt: oklch(0.28 0.055 165);
+  --felt-glow: oklch(0.52 0.13 170);
+  --felt-glow-2: oklch(0.55 0.11 200);
+  --on-felt: oklch(0.985 0.005 160);
+  --on-felt-dim: oklch(0.82 0.03 165);
+  --accent: oklch(0.85 0.115 88);
+  --accent-ink: oklch(0.22 0.04 85);
+  --positive: oklch(0.78 0.13 160);
+  --negative: oklch(0.71 0.15 25);
+  --danger: oklch(0.62 0.19 25);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-felt: var(--felt);
+  --color-felt-glow: var(--felt-glow);
+  --color-felt-glow-2: var(--felt-glow-2);
+  --color-on-felt: var(--on-felt);
+  --color-on-felt-dim: var(--on-felt-dim);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-width: 320px;
+  background:
+    radial-gradient(ellipse 60rem 24rem at 50% -10%, oklch(0.18 0.02 75 / 0.5), transparent 70%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+::selection {
+  background: oklch(0.8 0.13 75 / 0.25);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid oklch(0.8 0.13 75 / 0.5);
+  outline-offset: 2px;
+}
+
+.hairline-t {
+  border-top: 1px solid var(--line);
+}
+
+.font-serif-accent {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 400;
+}
+
+@keyframes row-flash {
+  0%,
+  100% {
+    border-color: var(--line);
+    background-color: transparent;
+  }
+  35% {
+    border-color: var(--positive);
+    background-color: oklch(0.78 0.13 160 / 0.12);
+  }
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.85 0.16 160 / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 7px oklch(0.85 0.16 160 / 0);
+  }
+}
+
+.animate-row-flash {
+  animation: row-flash 520ms ease-out;
+}
+.animate-live-pulse {
+  animation: live-pulse 1.8s ease-out infinite;
+}
+
+/* The Felt — ambient blob drift */
+@keyframes felt-drift-1 {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(34px, 18px) scale(1.12);
+  }
+}
+@keyframes felt-drift-2 {
+  from {
+    transform: translate(0, 0) scale(1.08);
+  }
+  to {
+    transform: translate(-28px, 14px) scale(0.98);
+  }
+}
+
+.felt-blobs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: filter 600ms ease;
+}
+.felt-blobs[data-cooled="true"] {
+  filter: saturate(0.45) brightness(0.85);
+}
+
+.felt-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.felt-blob-1 {
+  width: 340px;
+  height: 280px;
+  left: -90px;
+  top: -60px;
+  background: radial-gradient(closest-side, oklch(0.52 0.13 170 / 0.9), transparent 72%);
+  filter: blur(46px);
+  animation: felt-drift-1 45s ease-in-out infinite alternate;
+}
+
+.felt-blob-2 {
+  width: 300px;
+  height: 260px;
+  right: -100px;
+  top: -40px;
+  background: radial-gradient(closest-side, oklch(0.55 0.11 200 / 0.65), transparent 70%);
+  filter: blur(46px);
+  animation: felt-drift-2 45s ease-in-out infinite alternate;
+}
+
+.felt-blob-3 {
+  width: 240px;
+  height: 160px;
+  right: -60px;
+  bottom: -80px;
+  background: radial-gradient(closest-side, oklch(0.72 0.11 90 / 0.3), transparent 70%);
+  filter: blur(40px);
+  animation: felt-drift-1 45s ease-in-out infinite alternate-reverse;
+}
+
+/* Presence ring — conic gradient ring around avatars seated at a live table */
+.presence-ring::before {
+  content: "";
+  position: absolute;
+  border-radius: 40%;
+  padding: 2px;
+  background: conic-gradient(from 210deg, oklch(0.62 0.13 170), oklch(0.6 0.11 200), oklch(0.62 0.13 170));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.presence-ring[data-ring-size="sm"]::before {
+  inset: -3px;
+}
+.presence-ring[data-ring-size="md"]::before {
+  inset: -4px;
+}
+.presence-ring[data-ring-size="lg"]::before {
+  inset: -5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Group, GroupMember } from "@/types";
+import { PlayerAvatar } from "@/components/ui/player-avatar";
+import { ChevronRight } from "lucide-react";
 
 type ClaimFlowProps = {
   group: Pick<Group, "id" | "name">;
@@ -57,7 +59,7 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
     setPendingId(null);
 
     if (claimError || !data) {
-      setError("That player was just claimed. Pick another name or join as new.");
+      setError("That name was just claimed. Pick another or join as new.");
       router.refresh();
       return;
     }
@@ -110,50 +112,48 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
   const isBusy = pendingId !== null || isJoiningNew;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 py-10 text-zinc-50">
-      <section className="w-full max-w-md space-y-6">
-        <div className="space-y-2 text-center">
-          <p className="text-sm font-medium text-zinc-400">Invite accepted</p>
-          <h1 className="text-3xl font-semibold">Join {group.name}</h1>
-        </div>
+    <section>
+      <h1 className="text-[30px] font-bold tracking-[-0.02em] text-ink">Join {group.name}</h1>
+      <p className="mt-1 text-[15px] text-ink-2">
+        Pick your name if the host already added you.
+      </p>
 
-        <div className="space-y-3">
-          <h2 className="text-base font-medium text-zinc-200">
-            Are you one of these players?
-          </h2>
+      <div className="mt-7 rounded-3xl bg-surface divide-y divide-line overflow-hidden">
+        {unclaimedMembers.length ? (
+          unclaimedMembers.map((member) => (
+            <button
+              className="flex h-14 w-full items-center gap-3 px-4 text-left transition active:bg-surface-2 disabled:opacity-60"
+              disabled={isBusy}
+              key={member.id}
+              onClick={() => claimMember(member.id)}
+              type="button"
+            >
+              <PlayerAvatar name={member.display_name} size="sm" />
+              <span className="text-[15px] font-semibold text-ink">
+                {pendingId === member.id ? "Claiming…" : member.display_name}
+              </span>
+              <ChevronRight size={18} className="ml-auto text-ink-3" />
+            </button>
+          ))
+        ) : (
+          <p className="px-4 py-3 text-[15px] text-ink-2">
+            Everyone on the list has been claimed.
+          </p>
+        )}
+      </div>
 
-          {unclaimedMembers.length ? (
-            <div className="space-y-2">
-              {unclaimedMembers.map((member) => (
-                <button
-                  className="min-h-14 w-full rounded-md border border-zinc-800 bg-zinc-900 px-4 text-left text-base font-medium text-zinc-50 transition hover:border-zinc-600 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
-                  disabled={isBusy}
-                  key={member.id}
-                  onClick={() => claimMember(member.id)}
-                  type="button"
-                >
-                  {pendingId === member.id ? "Claiming..." : member.display_name}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="rounded-md border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-400">
-              No unclaimed players are left.
-            </p>
-          )}
-        </div>
+      <button
+        className="mt-4 h-14 w-full rounded-full bg-surface-2 text-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:text-ink-3"
+        disabled={isBusy}
+        onClick={joinAsNew}
+        type="button"
+      >
+        {isJoiningNew ? "Joining…" : "Join as a new player"}
+      </button>
 
-        <button
-          className="h-12 w-full rounded-md bg-zinc-50 px-4 text-base font-medium text-zinc-950 disabled:cursor-not-allowed disabled:opacity-70"
-          disabled={isBusy}
-          onClick={joinAsNew}
-          type="button"
-        >
-          {isJoiningNew ? "Joining..." : "I'm new to this group"}
-        </button>
-
-        {error ? <p className="text-sm text-red-400">{error}</p> : null}
-      </section>
-    </main>
+      {error ? (
+        <p className="mt-4 rounded-2xl bg-surface-2 p-3 text-sm text-danger">{error}</p>
+      ) : null}
+    </section>
   );
 }

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { GroupMember, SessionPlayer } from "@/types";
@@ -31,25 +30,8 @@ export default async function SessionPage({
     notFound();
   }
 
-  if (session.status === "settling") {
+  if (session.status !== "active") {
     redirect(`/groups/${groupId}/sessions/${sessionId}/settle`);
-  }
-
-  if (session.status === "settled") {
-    return (
-      <div className="space-y-5">
-        <div>
-          <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">Session</p>
-          <h1 className="mt-2 text-3xl font-semibold text-zinc-50">Session settled</h1>
-        </div>
-        <Link
-          className="inline-flex min-h-12 items-center rounded-md bg-zinc-100 px-5 font-medium text-zinc-950 hover:bg-white"
-          href={`/groups/${groupId}`}
-        >
-          Back to group
-        </Link>
-      </div>
-    );
   }
 
   const [
