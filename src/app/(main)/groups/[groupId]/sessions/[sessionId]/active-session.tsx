@@ -11,16 +11,16 @@ import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { AmountDisplay } from "@/components/ui/amount-display";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { PotDisplay } from "@/components/ui/pot-display";
+import { PaymentMethodSelector } from "@/components/ui/payment-method-selector";
 import { formatCents, formatDuration } from "@/lib/utils";
 import type { Group, GroupMember, Session, SettlementPaymentMethod, Transaction } from "@/types";
 import type { SessionPlayerWithMember } from "./page";
 
 type Props = { session: Session; group: Group; players: SessionPlayerWithMember[]; groupMembers: GroupMember[]; initialTransactions: Transaction[]; currentUserId: string | null; isBanker: boolean };
-type BuyinPaymentMethod = Extract<SettlementPaymentMethod, "venmo" | "cashapp" | "cash">;
+type BuyinPaymentMethod = SettlementPaymentMethod;
 type Summary = { buyins: number; cashouts: number; hasCashedOut: boolean; transactions: Transaction[]; method: SettlementPaymentMethod | null };
-const methods: BuyinPaymentMethod[] = ["venmo", "cashapp", "cash"];
+const methods: BuyinPaymentMethod[] = ["venmo", "cashapp", "zelle", "cash"];
 const methodLabel = (method: SettlementPaymentMethod) => method === "cashapp" ? "Cash App" : method.charAt(0).toUpperCase() + method.slice(1);
-const methodAbbreviation = (method: BuyinPaymentMethod | null) => method === "venmo" ? "V" : method === "cashapp" ? "C" : method === "cash" ? "$" : "+";
 
 const primaryButton = "h-14 rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:bg-surface-2 disabled:text-ink-3";
 const secondaryButton = "h-14 rounded-full bg-surface-2 text-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:text-ink-3";
@@ -70,6 +70,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   const undoTimer = useRef<number | null>(null);
   const tempIdCounter = useRef(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const cashoutSubmitting = useRef(false);
   const canManage = isBanker && session.status === "active" && Boolean(currentUserId);
 
   useEffect(() => {
@@ -131,14 +132,6 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
     setPaymentMethods((current) => ({ ...current, [player.member_id]: method }));
   }
 
-  function cyclePaymentMethod(memberId: string) {
-    setPaymentMethods((current) => {
-      const method = current[memberId] ?? null;
-      const next = method === null ? methods[0] : methods[(methods.indexOf(method) + 1) % methods.length];
-      return { ...current, [memberId]: next };
-    });
-  }
-
   function handlePresetTap(player: SessionPlayerWithMember, amount: number) {
     const key = `${player.member_id}-${amount}`;
     setPressedChips((current) => new Set(current).add(key));
@@ -179,7 +172,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   async function addNew(event: FormEvent) {
     event.preventDefault(); const name = newName.trim(); if (!name) return;
     setBusy("new-player");
-    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at").single();
+    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").single();
     if (error) { setBusy(null); setMessage(error.message); return; }
     setMembers((current) => [...current, member]); setNewName(""); await addExisting(member);
   }
@@ -189,17 +182,32 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   }
 
   async function confirmCashouts(force = false) {
-    if (!currentUserId) return;
+    if (!currentUserId || cashoutSubmitting.current) return;
     if (remaining !== 0 && !force) { setConfirmEnd(true); return; }
     const rows = players.flatMap((player) => {
       const amount = cents(cashouts[player.member_id] ?? "") ?? 0;
       return amount > 0 && !summaries.get(player.member_id)?.hasCashedOut ? [{ session_id: session.id, member_id: player.member_id, type: "cashout" as const, amount, created_by: currentUserId, payment_method: null }] : [];
     });
+    cashoutSubmitting.current = true;
     setBusy("cashout"); setMessage("");
-    if (rows.length) { const { error } = await supabase.from("transactions").insert(rows); if (error) { setBusy(null); setMessage(error.message); return; } }
-    const { error } = await supabase.from("sessions").update({ ended_at: new Date().toISOString(), status: "settling" }).eq("id", session.id);
-    setBusy(null); if (error) { setMessage(error.message); return; }
-    router.push(`/groups/${group.id}/sessions/${session.id}/settle`); router.refresh();
+
+    try {
+      if (rows.length) {
+        const { error: cashoutError } = await supabase.from("transactions").insert(rows);
+        if (cashoutError) { setMessage(cashoutError.message); return; }
+      }
+
+      const { error: sessionError } = await supabase
+        .from("sessions")
+        .update({ ended_at: new Date().toISOString(), status: "settling" })
+        .eq("id", session.id);
+      if (sessionError) { setMessage(sessionError.message); return; }
+
+      router.push(`/groups/${group.id}/sessions/${session.id}/settle`); router.refresh();
+    } finally {
+      cashoutSubmitting.current = false;
+      setBusy(null);
+    }
   }
 
   const errorBanner = message ? <p className="rounded-2xl bg-surface-2 p-3 text-sm text-danger">{message}</p> : null;
@@ -317,22 +325,28 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
               const net = summary.cashouts - summary.buyins;
               return (
                 <article className={`relative p-3.5 ${index > 0 ? "border-t border-line" : ""} ${summary.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
-                  {canManage && !summary.hasCashedOut ? (
-                    <button aria-label={`Payment method for next ${player.member.display_name} buy-in: ${paymentMethods[player.member_id] ? methodLabel(paymentMethods[player.member_id]!) : "not set"}. Tap to change.`} className="absolute right-3.5 top-3.5 z-10 flex size-8 items-center justify-center rounded-full border border-line-2 bg-surface-2 text-[12px] font-bold text-ink-2" onClick={() => cyclePaymentMethod(player.member_id)} title="Payment method for next buy-in" type="button">
-                      {methodAbbreviation(paymentMethods[player.member_id] ?? null)}
+                  <div className="flex items-center justify-between gap-1.5">
+                    <button className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setDetailTarget(player)} type="button">
+                      <PlayerAvatar name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-semibold text-ink">{player.member.display_name}</span>
+                        {summary.hasCashedOut
+                          ? <span className="mt-0.5 flex items-center gap-1 text-[13px] tabular-nums text-ink-2">Out {formatCents(summary.cashouts)} · <AmountDisplay amount={net} colored showSign size="sm" /></span>
+                          : <span className="mt-0.5 block text-[13px] tabular-nums text-ink-2">In {formatCents(summary.buyins)}</span>}
+                      </span>
                     </button>
-                  ) : null}
-                  <button className="flex min-h-11 w-full min-w-0 flex-1 items-center gap-3 pr-10 text-left" onClick={() => setDetailTarget(player)} type="button">
-                    <PlayerAvatar name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-semibold text-ink">{player.member.display_name}</span>
-                      {summary.hasCashedOut
-                        ? <span className="mt-0.5 flex items-center gap-1 text-[13px] tabular-nums text-ink-2">Out {formatCents(summary.cashouts)} · <AmountDisplay amount={net} colored showSign size="sm" /></span>
-                        : <span className="mt-0.5 block text-[13px] tabular-nums text-ink-2">In {formatCents(summary.buyins)}</span>}
-                    </span>
-                  </button>
+                    {canManage && !summary.hasCashedOut ? (
+                      <div className="shrink-0">
+                        <PaymentMethodSelector
+                          onChange={(method) => setPaymentMethods((current) => ({ ...current, [player.member_id]: method }))}
+                          size="sm"
+                          value={paymentMethods[player.member_id] ?? null}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
                   {canManage && !summary.hasCashedOut ? (
-                    <div className="mt-3 flex gap-2">
+                    <div className="mt-2 flex gap-2">
                       {group.buyin_presets.map((amount) => {
                         const key = `${player.member_id}-${amount}`;
                         return (
@@ -363,11 +377,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
           )}
 
           <BottomSheet onClose={() => setCustomTarget(null)} open={Boolean(customTarget)} title={customTarget?.member.display_name ?? "Buy-in"}>
-            <div className="flex rounded-2xl bg-surface-2 p-1">
-              {methods.map((method) => (
-                <button className={`flex-1 h-9 rounded-xl text-[13px] font-semibold transition ${selectedMethod === method ? "bg-surface-3 text-ink" : "text-ink-2"}`} key={method} onClick={() => setSelectedMethod(method)} type="button">{methodLabel(method)}</button>
-              ))}
-            </div>
+            <PaymentMethodSelector onChange={setSelectedMethod} value={selectedMethod} />
             <div className="mt-4 flex gap-2">
               <div className="relative flex-1">
                 <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[17px] text-ink-3">$</span>

@@ -80,7 +80,7 @@ export function NewSessionForm({
         role: "member",
         user_id: null,
       })
-      .select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at")
+      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
       .single();
 
     if (memberError) {
