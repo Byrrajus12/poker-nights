@@ -57,7 +57,7 @@ export default function ProfilePage() {
         <label className="block">
           <span className="block text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3 mb-2">Display name</span>
           <input
-            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-accent/30"
+            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15"
             onChange={(event) => setDisplayName(event.target.value)}
             value={displayName}
           />
@@ -84,7 +84,7 @@ export default function ProfilePage() {
         <label className="block">
           <span className="block text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3 mb-2">Payment handle</span>
           <input
-            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-accent/30"
+            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15"
             onChange={(event) => setHandle(event.target.value)}
             placeholder={method === "cashapp" ? "$cashtag" : method === "venmo" ? "@username" : "Email or phone"}
             value={handle}

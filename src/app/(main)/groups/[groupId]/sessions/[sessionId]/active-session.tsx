@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Ellipsis, Plus, Undo2 } from "lucide-react";
+import { Check, Plus, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { FeltCard } from "@/components/ui/felt-card";
 import { ChipButton } from "@/components/ui/chip-button";
@@ -11,22 +11,23 @@ import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { AmountDisplay } from "@/components/ui/amount-display";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { PotDisplay } from "@/components/ui/pot-display";
-import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCents, formatDuration } from "@/lib/utils";
 import type { Group, GroupMember, Session, SettlementPaymentMethod, Transaction } from "@/types";
 import type { SessionPlayerWithMember } from "./page";
 
 type Props = { session: Session; group: Group; players: SessionPlayerWithMember[]; groupMembers: GroupMember[]; initialTransactions: Transaction[]; currentUserId: string | null; isBanker: boolean };
-type Summary = { buyins: number; cashouts: number; hasCashedOut: boolean; transactions: Transaction[]; method: SettlementPaymentMethod };
-const methods: SettlementPaymentMethod[] = ["venmo", "cashapp", "zelle", "cash"];
+type BuyinPaymentMethod = Extract<SettlementPaymentMethod, "venmo" | "cashapp" | "cash">;
+type Summary = { buyins: number; cashouts: number; hasCashedOut: boolean; transactions: Transaction[]; method: SettlementPaymentMethod | null };
+const methods: BuyinPaymentMethod[] = ["venmo", "cashapp", "cash"];
 const methodLabel = (method: SettlementPaymentMethod) => method === "cashapp" ? "Cash App" : method.charAt(0).toUpperCase() + method.slice(1);
+const methodAbbreviation = (method: BuyinPaymentMethod | null) => method === "venmo" ? "V" : method === "cashapp" ? "C" : method === "cash" ? "$" : "+";
 
 const primaryButton = "h-14 rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:bg-surface-2 disabled:text-ink-3";
 const secondaryButton = "h-14 rounded-full bg-surface-2 text-ink text-[17px] font-semibold active:scale-[0.98] transition disabled:text-ink-3";
 const statLabel = "text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3";
 const sectionLabel = "text-[11px] font-semibold uppercase tracking-[0.10em] text-ink-3";
 const tile = "rounded-3xl bg-surface";
-const moneyInput = "rounded-2xl bg-surface-2 text-right tabular-nums text-[17px] font-semibold text-ink focus:ring-2 focus:ring-accent/30 outline-none";
+const moneyInput = "rounded-2xl bg-surface-2 text-right tabular-nums text-[17px] font-semibold text-ink focus:ring-2 focus:ring-white/15 outline-none";
 
 function cents(value: string) {
   const clean = value.trim().replace(/^\$/, "");
@@ -48,12 +49,21 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   const [addOpen, setAddOpen] = useState(false);
   const [cashoutMode, setCashoutMode] = useState(false);
   const [customAmount, setCustomAmount] = useState("");
-  const [selectedMethod, setSelectedMethod] = useState<SettlementPaymentMethod>("venmo");
+  const [selectedMethod, setSelectedMethod] = useState<BuyinPaymentMethod | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<Record<string, BuyinPaymentMethod | null>>(() => {
+    const latest: Record<string, BuyinPaymentMethod | null> = Object.fromEntries(initialPlayers.map((player) => [player.member_id, null]));
+    initialTransactions.forEach((transaction) => {
+      if (transaction.type === "buyin" && methods.includes(transaction.payment_method as BuyinPaymentMethod)) {
+        latest[transaction.member_id] = transaction.payment_method as BuyinPaymentMethod;
+      }
+    });
+    return latest;
+  });
   const [cashouts, setCashouts] = useState<Record<string, string>>({});
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [flashed, setFlashed] = useState<string | null>(null);
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const [pressedChips, setPressedChips] = useState<Set<string>>(new Set());
   const [undoArmed, setUndoArmed] = useState<string | null>(null);
   const [heroCollapsed, setHeroCollapsed] = useState(false);
@@ -85,7 +95,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
 
   const summaries = useMemo(() => {
     const map = new Map<string, Summary>();
-    players.forEach((player) => map.set(player.member_id, { buyins: 0, cashouts: 0, hasCashedOut: false, transactions: [], method: "venmo" }));
+    players.forEach((player) => map.set(player.member_id, { buyins: 0, cashouts: 0, hasCashedOut: false, transactions: [], method: null }));
     transactions.forEach((transaction) => {
       const summary = map.get(transaction.member_id); if (!summary) return;
       summary.transactions.push(transaction);
@@ -105,20 +115,28 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   const undoIsArmed = Boolean(lastTransaction && undoArmed === lastTransaction.id);
 
   const openCustom = useCallback((player: SessionPlayerWithMember) => {
-    setSelectedMethod(summaries.get(player.member_id)?.method ?? "venmo"); setCustomAmount(""); setCustomTarget(player);
-  }, [summaries]);
+    setSelectedMethod(paymentMethods[player.member_id] ?? null); setCustomAmount(""); setCustomTarget(player);
+  }, [paymentMethods]);
 
-  async function addBuyin(player: SessionPlayerWithMember, amount: number, method = summaries.get(player.member_id)?.method ?? "venmo") {
+  async function addBuyin(player: SessionPlayerWithMember, amount: number, method = paymentMethods[player.member_id] ?? null) {
     if (!currentUserId || busy) return;
     tempIdCounter.current += 1;
     const tempId = `temp-${tempIdCounter.current}`;
     const optimistic: Transaction = { id: tempId, session_id: session.id, member_id: player.member_id, type: "buyin", amount, created_by: currentUserId, created_at: session.started_at, payment_method: method };
-    setMessage(""); setFlashed(player.member_id); setTransactions((current) => [...current, optimistic]); setBusy(`buyin-${player.member_id}`);
-    window.setTimeout(() => setFlashed(null), 550);
+    setMessage(""); setTransactions((current) => [...current, optimistic]); setBusy(`buyin-${player.member_id}`);
     const { data, error } = await supabase.from("transactions").insert({ session_id: session.id, member_id: player.member_id, type: "buyin", amount, created_by: currentUserId, payment_method: method }).select("id,session_id,member_id,type,amount,created_by,created_at,payment_method").single();
     setBusy(null);
     if (error) { setTransactions((current) => current.filter((item) => item.id !== tempId)); setMessage(error.message); return; }
     setTransactions((current) => current.map((item) => item.id === tempId ? data : item));
+    setPaymentMethods((current) => ({ ...current, [player.member_id]: method }));
+  }
+
+  function cyclePaymentMethod(memberId: string) {
+    setPaymentMethods((current) => {
+      const method = current[memberId] ?? null;
+      const next = method === null ? methods[0] : methods[(methods.indexOf(method) + 1) % methods.length];
+      return { ...current, [memberId]: next };
+    });
   }
 
   function handlePresetTap(player: SessionPlayerWithMember, amount: number) {
@@ -161,17 +179,18 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   async function addNew(event: FormEvent) {
     event.preventDefault(); const name = newName.trim(); if (!name) return;
     setBusy("new-player");
-    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,created_at").single();
+    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at").single();
     if (error) { setBusy(null); setMessage(error.message); return; }
     setMembers((current) => [...current, member]); setNewName(""); await addExisting(member);
   }
 
   function startCashout() {
-    setCashouts(Object.fromEntries(players.map((player) => [player.member_id, summaries.get(player.member_id)?.hasCashedOut ? String((summaries.get(player.member_id)?.cashouts ?? 0) / 100) : ""]))); setCashoutMode(true); setMessage("");
+    setCashouts(Object.fromEntries(players.map((player) => [player.member_id, summaries.get(player.member_id)?.hasCashedOut ? String((summaries.get(player.member_id)?.cashouts ?? 0) / 100) : ""]))); setCashoutMode(true); setConfirmEnd(false); setMessage("");
   }
 
-  async function confirmCashouts() {
-    if (!currentUserId || remaining !== 0) return;
+  async function confirmCashouts(force = false) {
+    if (!currentUserId) return;
+    if (remaining !== 0 && !force) { setConfirmEnd(true); return; }
     const rows = players.flatMap((player) => {
       const amount = cents(cashouts[player.member_id] ?? "") ?? 0;
       return amount > 0 && !summaries.get(player.member_id)?.hasCashedOut ? [{ session_id: session.id, member_id: player.member_id, type: "cashout" as const, amount, created_by: currentUserId, payment_method: null }] : [];
@@ -189,7 +208,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
     <AnimatePresence initial={false} mode="wait">
       {cashoutMode ? (
         <motion.div animate={{ opacity: 1 }} className="pb-40" exit={{ opacity: 0 }} initial={{ opacity: 0 }} key="cashout" transition={{ duration: 0.18, ease: "easeOut" }}>
-          <button className="-ml-1 flex h-11 items-center px-1 text-[15px] font-medium text-ink-2" onClick={() => setCashoutMode(false)} type="button">Cancel</button>
+          <button className="-ml-1 flex h-11 items-center px-1 text-[15px] font-medium text-ink-2" onClick={() => { setCashoutMode(false); setConfirmEnd(false); }} type="button">Cancel</button>
 
           <FeltCard className="mt-1" variant="cooled">
             <div className="px-[22px] py-[22px] text-center">
@@ -211,10 +230,10 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
                     <p className="truncate text-[15px] font-semibold text-ink">{player.member.display_name}</p>
                     <p className="text-[13px] tabular-nums text-ink-2">In {formatCents(summary?.buyins ?? 0)}</p>
                   </div>
-                  <ChipButton aria-label={`Zero for ${player.member.display_name}`} disabled={summary?.hasCashedOut} onClick={() => setCashouts((current) => ({ ...current, [player.member_id]: "0" }))}>0</ChipButton>
+                  <ChipButton aria-label={`Zero for ${player.member.display_name}`} disabled={summary?.hasCashedOut} onClick={() => { setCashouts((current) => ({ ...current, [player.member_id]: "0" })); setConfirmEnd(false); }}>0</ChipButton>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-ink-3">$</span>
-                    <input aria-label={`${player.member.display_name} cashout`} className={`${moneyInput} h-12 w-28 pl-7 pr-3`} disabled={summary?.hasCashedOut} inputMode="decimal" onChange={(event) => setCashouts((current) => ({ ...current, [player.member_id]: event.target.value }))} placeholder="0" value={cashouts[player.member_id] ?? ""} />
+                    <input aria-label={`${player.member.display_name} cashout`} className={`${moneyInput} h-12 w-28 pl-7 pr-3`} disabled={summary?.hasCashedOut} inputMode="decimal" onChange={(event) => { setCashouts((current) => ({ ...current, [player.member_id]: event.target.value })); setConfirmEnd(false); }} placeholder="0" value={cashouts[player.member_id] ?? ""} />
                   </div>
                 </div>
               );
@@ -247,7 +266,16 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
                   </motion.span>
                 </span>
               </div>
-              <button className={`${primaryButton} w-full`} disabled={remaining !== 0 || busy === "cashout"} onClick={confirmCashouts} type="button">{busy === "cashout" ? "Ending…" : "End session"}</button>
+              {confirmEnd && remaining !== 0 ? (
+                <div className="mb-3 rounded-2xl border border-line-2 bg-surface px-3.5 py-3">
+                  <p className="text-[13px] text-ink">Cashouts are {formatCents(Math.abs(remaining))} off from buyins. End anyway?</p>
+                  <div className="mt-2 flex justify-end gap-2">
+                    <button className="h-9 rounded-full px-3 text-[13px] font-semibold text-ink-2" onClick={() => setConfirmEnd(false)} type="button">Go back</button>
+                    <button className="h-9 rounded-full bg-danger px-3 text-[13px] font-semibold text-white" onClick={() => void confirmCashouts(true)} type="button">End anyway</button>
+                  </div>
+                </div>
+              ) : null}
+              <button className={`${primaryButton} w-full`} disabled={busy === "cashout"} onClick={() => void confirmCashouts()} type="button">{busy === "cashout" ? "Ending…" : "End session"}</button>
             </div>
           </footer>
         </motion.div>
@@ -255,8 +283,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
         <motion.div animate={{ opacity: 1 }} className="pb-28" exit={{ opacity: 0 }} initial={{ opacity: 0 }} key="live" transition={{ duration: 0.18, ease: "easeOut" }}>
           <FeltCard variant="live">
             <div className="px-[22px] py-[26px] text-center">
-              <div className="flex justify-center"><StatusBadge onFelt status="active" /></div>
-              <p className="font-serif-accent mt-3.5 text-[17px] text-on-felt-dim">tonight&apos;s pot</p>
+              <p className="font-serif-accent text-[17px] text-on-felt-dim">tonight&apos;s pot</p>
               <PotDisplay amount={totalBuyins} className="mt-1 text-on-felt" />
               <p className="mt-2 text-[13px] tabular-nums text-on-felt-dim">
                 {players.length} {players.length === 1 ? "player" : "players"} · {elapsed}
@@ -269,12 +296,11 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
             {heroCollapsed ? (
               <motion.div
                 animate={{ opacity: 1 }}
-                className="sticky top-14 z-30 -mx-4 flex items-center justify-center gap-2 border-b border-line bg-bg/78 px-4 py-2.5 backdrop-blur-xl"
+                className="sticky top-14 z-30 -mx-4 flex items-center justify-center border-b border-line bg-bg/78 px-4 py-2.5 backdrop-blur-xl"
                 exit={{ opacity: 0 }}
                 initial={{ opacity: 0 }}
                 transition={{ duration: reducedMotion ? 0 : 0.15 }}
               >
-                <span aria-hidden className="animate-live-pulse inline-block size-1.5 rounded-full bg-positive" />
                 <AmountDisplay amount={totalBuyins} size="lg" />
               </motion.div>
             ) : null}
@@ -290,8 +316,13 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
               const summary = summaries.get(player.member_id)!;
               const net = summary.cashouts - summary.buyins;
               return (
-                <article className={`p-3.5 transition ${index > 0 ? "border-t border-line" : ""} ${flashed === player.member_id ? "animate-row-flash" : ""} ${summary.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
-                  <button className="flex min-h-11 w-full min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setDetailTarget(player)} type="button">
+                <article className={`relative p-3.5 ${index > 0 ? "border-t border-line" : ""} ${summary.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
+                  {canManage && !summary.hasCashedOut ? (
+                    <button aria-label={`Payment method for next ${player.member.display_name} buy-in: ${paymentMethods[player.member_id] ? methodLabel(paymentMethods[player.member_id]!) : "not set"}. Tap to change.`} className="absolute right-3.5 top-3.5 z-10 flex size-8 items-center justify-center rounded-full border border-line-2 bg-surface-2 text-[12px] font-bold text-ink-2" onClick={() => cyclePaymentMethod(player.member_id)} title="Payment method for next buy-in" type="button">
+                      {methodAbbreviation(paymentMethods[player.member_id] ?? null)}
+                    </button>
+                  ) : null}
+                  <button className="flex min-h-11 w-full min-w-0 flex-1 items-center gap-3 pr-10 text-left" onClick={() => setDetailTarget(player)} type="button">
                     <PlayerAvatar name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[15px] font-semibold text-ink">{player.member.display_name}</span>
@@ -310,8 +341,8 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
                           </ChipButton>
                         );
                       })}
-                      <ChipButton aria-label="Custom amount" onClick={() => openCustom(player)}>
-                        <Ellipsis size={16} />
+                      <ChipButton aria-label={`Enter custom amount for ${player.member.display_name}`} className="px-3" onClick={() => openCustom(player)}>
+                        <span className="flex items-center gap-1"><Plus aria-hidden size={14} /><span className="text-[11px]">Custom</span></span>
                       </ChipButton>
                     </div>
                   ) : null}
@@ -379,7 +410,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
             </div>
             {!available.length ? <p className="py-3 text-[13px] text-ink-2">Everyone is already seated.</p> : null}
             <form className="mt-4 flex gap-2 border-t border-line pt-4" onSubmit={addNew}>
-              <input className="h-14 min-w-0 flex-1 rounded-2xl bg-surface-2 px-4 text-[17px] text-ink focus:ring-2 focus:ring-accent/30 outline-none" onChange={(event) => setNewName(event.target.value)} placeholder="Name" value={newName} />
+              <input className="h-14 min-w-0 flex-1 rounded-2xl bg-surface-2 px-4 text-[17px] text-ink focus:ring-2 focus:ring-white/15 outline-none" onChange={(event) => setNewName(event.target.value)} placeholder="Name" value={newName} />
               <button className={`${secondaryButton} w-auto px-5`} disabled={!newName.trim() || Boolean(busy)}>Add</button>
             </form>
           </BottomSheet>

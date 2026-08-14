@@ -72,6 +72,8 @@ export interface Database {
           display_name: string;
           role: MemberRole;
           is_claimed: boolean;
+          payment_handle: string | null;
+          payment_method: SettlementPaymentMethod | null;
           created_at: string;
         };
         Insert: {
@@ -81,6 +83,8 @@ export interface Database {
           display_name: string;
           role?: MemberRole;
           is_claimed?: boolean;
+          payment_handle?: string | null;
+          payment_method?: SettlementPaymentMethod | null;
           created_at?: string;
         };
         Update: {
@@ -90,6 +94,8 @@ export interface Database {
           display_name?: string;
           role?: MemberRole;
           is_claimed?: boolean;
+          payment_handle?: string | null;
+          payment_method?: SettlementPaymentMethod | null;
           created_at?: string;
         };
         Relationships: [];

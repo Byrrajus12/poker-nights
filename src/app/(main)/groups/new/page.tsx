@@ -125,7 +125,7 @@ export default function NewGroupPage() {
           </label>
           <input
             autoComplete="off"
-            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-accent/30"
+            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15"
             id="group-name"
             maxLength={80}
             onChange={(event) => setName(event.target.value)}

@@ -61,7 +61,7 @@ export default async function SessionPage({
       .order("created_at", { ascending: true }),
     supabase
       .from("group_members")
-      .select("id,group_id,user_id,display_name,role,is_claimed,created_at")
+      .select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at")
       .eq("group_id", groupId)
       .order("display_name", { ascending: true }),
     supabase.auth.getUser(),

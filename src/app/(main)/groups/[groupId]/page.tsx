@@ -18,7 +18,7 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
   if (!group) notFound();
 
   const [membersResult, sessionsResult] = await Promise.all([
-    supabase.from("group_members").select("id,group_id,user_id,display_name,role,is_claimed,created_at").eq("group_id", groupId).order("created_at"),
+    supabase.from("group_members").select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at").eq("group_id", groupId).order("created_at"),
     supabase.from("sessions").select("id,group_id,banker_id,status,started_at,ended_at,notes").eq("group_id", groupId).order("started_at", { ascending: false }),
   ]);
   if (membersResult.error || sessionsResult.error) throw new Error(membersResult.error?.message ?? sessionsResult.error?.message ?? "Could not load group");

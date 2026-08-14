@@ -22,7 +22,7 @@ export default function JoinPage() {
           autoCapitalize="characters"
           autoComplete="off"
           autoFocus
-          className="h-16 w-full rounded-2xl bg-surface-2 text-center text-[28px] font-bold tracking-[0.35em] uppercase tabular-nums text-ink outline-none placeholder:text-ink-3 placeholder:tracking-[0.35em] focus:ring-2 focus:ring-accent/30"
+          className="h-16 w-full rounded-2xl bg-surface-2 text-center text-[28px] font-bold tracking-[0.35em] uppercase tabular-nums text-ink outline-none placeholder:text-ink-3 placeholder:tracking-[0.35em] focus:ring-2 focus:ring-white/15"
           maxLength={6}
           onChange={(event) => setCode(event.target.value.toUpperCase())}
           placeholder="ABC123"

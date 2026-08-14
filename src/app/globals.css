@@ -81,9 +81,16 @@ a {
   color: var(--ink);
 }
 
-:focus-visible {
-  outline: 2px solid oklch(0.8 0.13 75 / 0.5);
-  outline-offset: 2px;
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid oklch(1 0 0 / 0.14);
+  outline-offset: 1px;
 }
 
 .hairline-t {
@@ -96,18 +103,6 @@ a {
   font-weight: 400;
 }
 
-@keyframes row-flash {
-  0%,
-  100% {
-    border-color: var(--line);
-    background-color: transparent;
-  }
-  35% {
-    border-color: var(--positive);
-    background-color: oklch(0.78 0.13 160 / 0.12);
-  }
-}
-
 @keyframes live-pulse {
   0%,
   100% {
@@ -118,9 +113,6 @@ a {
   }
 }
 
-.animate-row-flash {
-  animation: row-flash 520ms ease-out;
-}
 .animate-live-pulse {
   animation: live-pulse 1.8s ease-out infinite;
 }

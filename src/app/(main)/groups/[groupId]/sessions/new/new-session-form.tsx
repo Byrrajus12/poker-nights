@@ -80,7 +80,7 @@ export function NewSessionForm({
         role: "member",
         user_id: null,
       })
-      .select("id,group_id,user_id,display_name,role,is_claimed,created_at")
+      .select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at")
       .single();
 
     if (memberError) {
@@ -189,7 +189,7 @@ export function NewSessionForm({
               <input
                 autoComplete="off"
                 autoFocus
-                className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
+                className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15 disabled:opacity-60"
                 disabled={isAddingPlayer || isStartingSession}
                 maxLength={80}
                 onChange={(event) => setNewPlayerName(event.target.value)}
