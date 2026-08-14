@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight, Check, ChevronLeft } from "lucide-react";
-import { getCashAppLink, getVenmoWebLink } from "@/lib/payment-links";
+import { getCashAppLink, getVenmoDeepLink } from "@/lib/payment-links";
 import { calculateSettlements } from "@/lib/settlements";
 import { createClient } from "@/lib/supabase/client";
 import { AmountDisplay } from "@/components/ui/amount-display";
@@ -207,7 +207,7 @@ export function SettlementView({ groupId, sessionId, settlements: initial, banke
               const availableHandles = { venmo: Boolean(item.handles.venmo), cashapp: Boolean(item.handles.cashapp), zelle: Boolean(item.handles.zelle) };
               const selectedHandle = method === "cash" ? null : item.handles[method];
               const paymentLink = selectedHandle && method === "venmo"
-                ? getVenmoWebLink(selectedHandle, item.amount / 100, "Poker Night")
+                ? getVenmoDeepLink(selectedHandle, item.amount / 100, "Poker Night")
                 : selectedHandle && method === "cashapp"
                   ? getCashAppLink(selectedHandle, item.amount / 100)
                   : null;
@@ -259,7 +259,7 @@ export function SettlementView({ groupId, sessionId, settlements: initial, banke
                       ) : null}
                       <div className={`mt-3 grid gap-2 ${method !== "cash" && editingHandle !== item.id ? "grid-cols-2" : "grid-cols-1"}`}>
                         {paymentLink ? (
-                          <a className={`${darkPill} min-w-0`} href={paymentLink} rel="noreferrer" target="_blank">Open {label(method)} <ArrowUpRight aria-hidden size={16} /></a>
+                          <a className={`${darkPill} min-w-0`} href={paymentLink} rel={method === "cashapp" ? "noreferrer" : undefined} target={method === "cashapp" ? "_blank" : undefined}>Open {label(method)} <ArrowUpRight aria-hidden size={16} /></a>
                         ) : method !== "cash" && editingHandle !== item.id ? (
                           selectedHandle ? (
                             <div className="flex min-h-12 min-w-0 items-center justify-center rounded-full bg-surface-2 px-3 text-center text-[13px] text-ink-2">Send to {selectedHandle}</div>
