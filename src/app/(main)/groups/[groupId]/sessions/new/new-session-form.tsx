@@ -105,38 +105,21 @@ export function NewSessionForm({
     setIsStartingSession(true);
 
     const supabase = createClient();
-    const { data: session, error: sessionError } = await supabase
-      .from("sessions")
-      .insert({
-        banker_id: currentUserId,
-        group_id: group.id,
-        status: "active",
-      })
-      .select("id")
-      .single();
+    const { data: sessionId, error: sessionError } = await supabase.rpc(
+      "create_session_with_players",
+      {
+        p_group_id: group.id,
+        p_member_ids: Array.from(checkedMemberIds),
+      },
+    );
 
-    if (sessionError) {
-      setError(sessionError.message);
+    if (sessionError || !sessionId) {
+      setError(sessionError?.message ?? "Could not create the session.");
       setIsStartingSession(false);
       return;
     }
 
-    const sessionPlayers = Array.from(checkedMemberIds).map((memberId) => ({
-      member_id: memberId,
-      session_id: session.id,
-    }));
-
-    const { error: playersError } = await supabase
-      .from("session_players")
-      .insert(sessionPlayers);
-
-    if (playersError) {
-      setError(playersError.message);
-      setIsStartingSession(false);
-      return;
-    }
-
-    router.push(`/groups/${group.id}/sessions/${session.id}`);
+    router.push(`/groups/${group.id}/sessions/${sessionId}`);
     router.refresh();
   }
 

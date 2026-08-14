@@ -235,6 +235,13 @@ export interface Database {
     };
     Views: Record<string, never>;
     Functions: {
+      create_session_with_players: {
+        Args: {
+          p_group_id: string;
+          p_member_ids: string[];
+        };
+        Returns: string;
+      };
       generate_invite_code: {
         Args: Record<PropertyKey, never>;
         Returns: string;
