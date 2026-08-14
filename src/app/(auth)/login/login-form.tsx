@@ -192,6 +192,15 @@ export function LoginForm() {
               value={password}
             />
 
+            {!isSignUp ? (
+              <Link
+                className="mt-3 block text-right text-[14px] text-ink-2 transition-colors hover:text-ink"
+                href="/reset-password"
+              >
+                Forgot password?
+              </Link>
+            ) : null}
+
             {isSignUp ? (
               <>
                 <label
