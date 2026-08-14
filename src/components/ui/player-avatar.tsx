@@ -1,5 +1,10 @@
+"use client";
+
+import { useState } from "react";
+
 type PlayerAvatarProps = {
   name: string;
+  avatarUrl?: string | null;
   size?: "sm" | "md" | "lg";
   ring?: boolean;
   className?: string;
@@ -19,11 +24,22 @@ function hueFromName(name: string) {
   return Math.abs(hash) % 360;
 }
 
-export function PlayerAvatar({ name, size = "md", ring = false, className = "" }: PlayerAvatarProps) {
+export function PlayerAvatar({ name, avatarUrl, size = "md", ring = false, className = "" }: PlayerAvatarProps) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const initial = name.trim().charAt(0).toUpperCase() || "?";
   const hue = hueFromName(name);
 
-  const avatar = (
+  const avatar = avatarUrl && failedUrl !== avatarUrl ? (
+    // Supabase hosts these public URLs; a native image also avoids requiring a hostname allowlist.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt={name}
+      className={`shrink-0 rounded-[35%] border border-white/10 object-cover ${sizes[size]} ${ring ? "" : className}`}
+      onError={() => setFailedUrl(avatarUrl)}
+      src={avatarUrl}
+      title={name}
+    />
+  ) : (
     <span
       aria-label={name}
       className={`inline-flex shrink-0 items-center justify-center rounded-[35%] border border-white/10 ${sizes[size]} ${ring ? "" : className}`}

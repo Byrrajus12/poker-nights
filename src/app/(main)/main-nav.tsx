@@ -6,9 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { LogOut, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { PlayerAvatar } from "@/components/ui/player-avatar";
 
-export function MainNav({ displayName }: { displayName: string }) {
+export function MainNav({ displayName, avatarUrl }: { displayName: string; avatarUrl: string | null }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -36,11 +35,11 @@ export function MainNav({ displayName }: { displayName: string }) {
           <button
             aria-expanded={open}
             aria-label="Open profile menu"
-            className="rounded-full p-1.5 transition hover:ring-2 hover:ring-accent/50"
+            className="rounded-[35%] p-1.5 outline-none transition hover:bg-surface-2 focus:outline-none focus-visible:outline-none"
             onClick={() => setOpen((value) => !value)}
             type="button"
           >
-            <PlayerAvatar name={displayName} size="sm" />
+            <HeaderAvatar avatarUrl={avatarUrl} displayName={displayName} />
           </button>
           <AnimatePresence>
             {open ? (
@@ -74,5 +73,28 @@ export function MainNav({ displayName }: { displayName: string }) {
         </div>
       </div>
     </header>
+  );
+}
+
+function HeaderAvatar({ displayName, avatarUrl }: { displayName: string; avatarUrl: string | null }) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (avatarUrl && failedUrl !== avatarUrl) {
+    return (
+      // Public Supabase avatar URLs are intentionally rendered without a hover tooltip.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        alt=""
+        className="h-8 w-8 rounded-[35%] border border-white/10 object-cover"
+        onError={() => setFailedUrl(avatarUrl)}
+        src={avatarUrl}
+      />
+    );
+  }
+
+  return (
+    <span aria-hidden className="inline-flex h-8 w-8 items-center justify-center rounded-[35%] border border-white/10 bg-surface-2 text-xs font-semibold text-ink">
+      {displayName.trim().charAt(0).toUpperCase() || "?"}
+    </span>
   );
 }

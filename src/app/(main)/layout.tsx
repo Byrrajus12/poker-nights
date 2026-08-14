@@ -22,7 +22,7 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
 
   const { data: profile } = await supabase
     .from("users")
-    .select("display_name,email")
+    .select("display_name,email,avatar_url")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -31,7 +31,7 @@ async function AuthenticatedShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-dvh bg-bg text-ink">
-      <MainNav displayName={displayName} />
+      <MainNav avatarUrl={profile?.avatar_url ?? null} displayName={displayName} />
       <main className="mx-auto w-full max-w-md px-4 pt-6 pb-24">{children}</main>
     </div>
   );
