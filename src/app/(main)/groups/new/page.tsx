@@ -53,7 +53,7 @@ export default function NewGroupPage() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("display_name,email")
+      .select("display_name,email,avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -84,6 +84,7 @@ export default function NewGroupPage() {
       }
 
       const { error: memberError } = await supabase.from("group_members").insert({
+        avatar_url: profile?.avatar_url ?? null,
         display_name: displayName,
         group_id: group.id,
         is_claimed: true,
