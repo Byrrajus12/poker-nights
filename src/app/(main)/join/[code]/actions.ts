@@ -15,6 +15,10 @@ function isMembershipConstraint(error: { details?: string; message: string }) {
   return `${error.message} ${error.details ?? ""}`.toLowerCase().includes("user_id");
 }
 
+function hasValue(value: string | null | undefined) {
+  return Boolean(value?.trim());
+}
+
 export async function claimMember(memberId: string, groupId: string) {
   const supabase = await createClient();
   const {
@@ -30,7 +34,7 @@ export async function claimMember(memberId: string, groupId: string) {
     const adminSupabase = createAdminClient();
     const { data: member, error: memberError } = await adminSupabase
       .from("group_members")
-      .select("id, avatar_url")
+      .select("id, display_name, avatar_url, venmo_handle, cashapp_handle, zelle_handle")
       .eq("id", memberId)
       .eq("group_id", groupId)
       .eq("is_claimed", false)
@@ -61,7 +65,7 @@ export async function claimMember(memberId: string, groupId: string) {
 
     const { data: profile, error: profileError } = await adminSupabase
       .from("users")
-      .select("avatar_url")
+      .select("display_name, avatar_url, venmo_handle, cashapp_handle, zelle_handle")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -91,6 +95,46 @@ export async function claimMember(memberId: string, groupId: string) {
     }
     if (!claimedMember) {
       return { error: "That name was just claimed. Pick another or join as new." } as const;
+    }
+
+    const profileUpdates: {
+      display_name?: string;
+      venmo_handle?: string;
+      cashapp_handle?: string;
+      zelle_handle?: string;
+    } = {};
+    const emailPrefix = user.email?.split("@")[0]?.trim() ?? "";
+    const profileName = profile?.display_name?.trim() ?? "";
+    const hasDefaultName = Boolean(
+      emailPrefix
+      && !/\s/.test(profileName)
+      && profileName.toLowerCase() === emailPrefix.toLowerCase(),
+    );
+
+    if (hasDefaultName && member.display_name.trim()) {
+      profileUpdates.display_name = member.display_name.trim();
+    }
+    if (!hasValue(profile?.venmo_handle) && hasValue(member.venmo_handle)) {
+      profileUpdates.venmo_handle = member.venmo_handle!.trim();
+    }
+    if (!hasValue(profile?.cashapp_handle) && hasValue(member.cashapp_handle)) {
+      profileUpdates.cashapp_handle = member.cashapp_handle!.trim();
+    }
+    if (!hasValue(profile?.zelle_handle) && hasValue(member.zelle_handle)) {
+      profileUpdates.zelle_handle = member.zelle_handle!.trim();
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      const { error: profileUpdateError } = await adminSupabase
+        .from("users")
+        .update(profileUpdates)
+        .eq("id", user.id);
+
+      if (profileUpdateError) {
+        return {
+          error: "Your player was claimed, but we couldn't sync the roster details to your profile.",
+        } as const;
+      }
     }
 
     return { success: true, groupId } as const;
