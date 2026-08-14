@@ -35,7 +35,7 @@ export function PaymentMethodSelector({ value, onChange, size = "md", availableH
           <button
             aria-label={label}
             aria-pressed={selected}
-            className={`flex items-center justify-center transition-all duration-150 ${selected ? "bg-surface-3 shadow-sm" : "bg-transparent"} ${compact ? "size-8 flex-none rounded-lg" : "min-h-11 min-w-0 flex-1 gap-1.5 rounded-xl px-0.5"}`}
+            className={`flex items-center justify-center overflow-hidden transition-all duration-150 ${selected ? "bg-surface-3 shadow-sm" : "bg-transparent"} ${compact ? "size-8 flex-none rounded-lg" : "min-h-11 min-w-0 flex-1 gap-1.5 rounded-xl px-0.5"}`}
             key={method}
             onClick={() => onChange(method)}
             title={label}
@@ -45,7 +45,7 @@ export function PaymentMethodSelector({ value, onChange, size = "md", availableH
               <Icon aria-hidden color={color} size={compact ? 16 : 19} className={selected ? "opacity-100" : "opacity-45"} />
               {compact && hasHandle ? <span aria-hidden className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-positive ring-1 ring-surface-2" /> : null}
             </span>
-            {!compact ? <span className={`relative whitespace-nowrap text-[10px] font-semibold ${selected ? "text-ink" : "text-ink-3"}`}>{label}{hasHandle ? <span aria-hidden className="absolute -right-2 -top-0.5 size-1.5 rounded-full bg-positive" /> : null}</span> : null}
+            {!compact ? <span className={`relative whitespace-nowrap pr-2 font-semibold ${method === "cashapp" ? "text-[9px]" : "text-[10px]"} ${selected ? "text-ink" : "text-ink-3"}`}>{label}{hasHandle ? <span aria-hidden className="absolute -top-0.5 right-0 size-1.5 rounded-full bg-positive" /> : null}</span> : null}
           </button>
         );
       })}
