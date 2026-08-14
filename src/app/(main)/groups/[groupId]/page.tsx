@@ -6,9 +6,9 @@ import { AmountDisplay } from "@/components/ui/amount-display";
 import { PotDisplay } from "@/components/ui/pot-display";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { FeltCard } from "@/components/ui/felt-card";
+import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { formatDuration, formatSessionDate } from "@/lib/utils";
 import { CopyInviteButton } from "./copy-invite-button";
-import { MemberHandleEditor } from "./member-handle-editor";
 
 export default async function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
   const { groupId } = await params;
@@ -86,7 +86,18 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
 
       <section>
         <h2 className="mb-3 mt-8 text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3">Players</h2>
-        <MemberHandleEditor canEdit={canEditMembers} initialMembers={members} />
+        <div className="flex gap-4 overflow-x-auto pb-1 [scrollbar-width:none]">
+          {members.map((member) => (
+            <Link
+              className="flex shrink-0 flex-col items-center gap-2"
+              href={`/groups/${group.id}/members/${member.id}`}
+              key={member.id}
+            >
+              <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="lg" />
+              <span className="max-w-14 truncate text-center text-[13px] text-ink-2">{member.display_name}</span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <section>
