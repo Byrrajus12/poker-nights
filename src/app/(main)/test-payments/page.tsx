@@ -16,7 +16,7 @@ type LinkOption = {
 };
 
 export default function TestPaymentsPage() {
-  const [handle, setHandle] = useState("@john");
+  const [handle, setHandle] = useState("");
   const [amount, setAmount] = useState("25.00");
   const [note, setNote] = useState("Poker Night");
   const dollarAmount = Number(amount) || 0;
@@ -85,7 +85,7 @@ export default function TestPaymentsPage() {
           <input
             className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[16px] text-ink outline-none placeholder:text-ink-3 focus:ring-2 focus:ring-white/15"
             onChange={(event) => setHandle(event.target.value)}
-            placeholder="@john or $john"
+            placeholder="Bigwhale123"
             type="text"
             value={handle}
           />

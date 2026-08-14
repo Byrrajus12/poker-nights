@@ -61,7 +61,7 @@ export function generatePaymentLink(
   const dollars = amountInCents / 100;
 
   if (method === "venmo") {
-    return getVenmoWebLink(handle, dollars, "Poker Night");
+    return getVenmoDeepLink(handle, dollars, "Poker Night");
   }
 
   if (method === "cashapp") {
