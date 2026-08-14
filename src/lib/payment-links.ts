@@ -4,8 +4,9 @@ function formatDollarAmount(amount: number): string {
 
 function getVenmoQuery(handle: string, amount: number, note?: string): string {
   const noteParam = note ? `&note=${encodeURIComponent(note)}` : "";
+  const username = handle.trim().replace(/^@/, "");
 
-  return `recipients=${encodeURIComponent(handle.trim())}&amount=${formatDollarAmount(amount)}${noteParam}`;
+  return `recipients=${encodeURIComponent(username)}&amount=${formatDollarAmount(amount)}${noteParam}`;
 }
 
 export function getVenmoDeepLink(
@@ -60,7 +61,7 @@ export function generatePaymentLink(
   const dollars = amountInCents / 100;
 
   if (method === "venmo") {
-    return getVenmoDeepLink(handle, dollars, "Poker Night");
+    return getVenmoWebLink(handle, dollars, "Poker Night");
   }
 
   if (method === "cashapp") {

@@ -11,6 +11,7 @@ import {
 
 type LinkOption = {
   label: string;
+  recommended?: boolean;
   url: string;
 };
 
@@ -31,6 +32,7 @@ export default function TestPaymentsPage() {
           },
           {
             label: "venmo.com web link",
+            recommended: true,
             url: getVenmoWebLink(handle, dollarAmount, note || undefined),
           },
           {
@@ -48,6 +50,7 @@ export default function TestPaymentsPage() {
         links: [
           {
             label: "cash.app web link",
+            recommended: true,
             url: getCashAppLink(handle, dollarAmount),
           },
           {
@@ -124,9 +127,16 @@ export default function TestPaymentsPage() {
             <div className="mt-3 space-y-3">
               {group.links.map((link) => (
                 <article className="rounded-3xl bg-surface p-4" key={link.label}>
-                  <h3 className="text-[14px] font-semibold text-ink">
-                    {link.label}
-                  </h3>
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-[14px] font-semibold text-ink">
+                      {link.label}
+                    </h3>
+                    {link.recommended ? (
+                      <span className="rounded-full bg-positive/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-positive">
+                        Recommended
+                      </span>
+                    ) : null}
+                  </div>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <a
                       className="flex h-11 items-center justify-center rounded-full bg-accent px-3 text-center text-[13px] font-semibold text-accent-ink transition active:scale-[0.98]"
