@@ -79,6 +79,7 @@ export interface Database {
           group_id: string;
           user_id: string | null;
           display_name: string;
+          avatar_url: string | null;
           role: MemberRole;
           is_claimed: boolean;
           venmo_handle: string | null;
@@ -91,6 +92,7 @@ export interface Database {
           group_id: string;
           user_id?: string | null;
           display_name: string;
+          avatar_url?: string | null;
           role?: MemberRole;
           is_claimed?: boolean;
           venmo_handle?: string | null;
@@ -103,6 +105,7 @@ export interface Database {
           group_id?: string;
           user_id?: string | null;
           display_name?: string;
+          avatar_url?: string | null;
           role?: MemberRole;
           is_claimed?: boolean;
           venmo_handle?: string | null;
