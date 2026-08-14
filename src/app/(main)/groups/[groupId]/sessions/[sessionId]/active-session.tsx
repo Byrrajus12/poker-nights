@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Check, Plus, Undo2 } from "lucide-react";
+import { ArrowLeftRight, Check, Plus, Undo2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { FeltCard } from "@/components/ui/felt-card";
 import { ChipButton } from "@/components/ui/chip-button";
@@ -63,22 +63,29 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [bankerId, setBankerId] = useState(session.banker_id);
   const [pressedChips, setPressedChips] = useState<Set<string>>(new Set());
   const [undoArmed, setUndoArmed] = useState<string | null>(null);
   const [heroCollapsed, setHeroCollapsed] = useState(false);
   const undoTimer = useRef<number | null>(null);
+  const confirmationTimer = useRef<number | null>(null);
   const tempIdCounter = useRef(0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const cashoutSubmitting = useRef(false);
-  const canManage = isBanker && session.status === "active" && Boolean(currentUserId);
+  const canManage = isBanker && currentUserId === bankerId && session.status === "active";
 
   useEffect(() => {
     const timer = window.setInterval(() => setElapsed(formatDuration(session.started_at)), 60000);
     return () => window.clearInterval(timer);
   }, [session.started_at]);
 
-  useEffect(() => () => { if (undoTimer.current) window.clearTimeout(undoTimer.current); }, []);
+  useEffect(() => () => {
+    if (undoTimer.current) window.clearTimeout(undoTimer.current);
+    if (confirmationTimer.current) window.clearTimeout(confirmationTimer.current);
+  }, []);
 
   useEffect(() => {
     if (cashoutMode) return;
@@ -110,6 +117,10 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
   const remaining = totalBuyins - enteredCashouts;
   const seated = new Set(players.map((player) => player.member_id));
   const available = members.filter((member) => !seated.has(member.id));
+  const eligibleTransfers = players.flatMap((player) => {
+    const member = members.find((item) => item.id === player.member_id);
+    return member?.is_claimed && member.user_id && member.user_id !== bankerId ? [{ player, member }] : [];
+  });
 
   const detailTransactions = detailTarget ? summaries.get(detailTarget.member_id)?.transactions ?? [] : [];
   const lastTransaction = detailTransactions[detailTransactions.length - 1];
@@ -175,6 +186,36 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
     const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").single();
     if (error) { setBusy(null); setMessage(error.message); return; }
     setMembers((current) => [...current, member]); setNewName(""); await addExisting(member);
+  }
+
+  async function transferBanker(member: GroupMember) {
+    if (!canManage || !currentUserId || !member.user_id || busy) return;
+
+    setBusy(`transfer-${member.id}`);
+    setMessage("");
+    setConfirmation("");
+    const { data, error } = await supabase
+      .from("sessions")
+      .update({ banker_id: member.user_id })
+      .eq("id", session.id)
+      .eq("banker_id", currentUserId)
+      .select("banker_id")
+      .single();
+    setBusy(null);
+
+    if (error) {
+      setMessage(error.message);
+      return;
+    }
+
+    setBankerId(data.banker_id);
+    setTransferOpen(false);
+    setConfirmation(`Transferred to ${member.display_name}`);
+    if (confirmationTimer.current) window.clearTimeout(confirmationTimer.current);
+    confirmationTimer.current = window.setTimeout(() => {
+      confirmationTimer.current = null;
+      setConfirmation("");
+    }, 3000);
   }
 
   function startCashout() {
@@ -314,10 +355,23 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
             ) : null}
           </AnimatePresence>
 
-          <p className="mt-4 text-[13px] text-ink-3">{group.name}</p>
+          <div className="mt-4 flex min-h-10 items-center justify-between gap-3">
+            <p className="text-[13px] text-ink-3">{group.name}</p>
+            {canManage ? (
+              <button
+                className="inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-ink-2 transition hover:bg-surface-2 hover:text-ink"
+                onClick={() => { setMessage(""); setTransferOpen(true); }}
+                type="button"
+              >
+                <ArrowLeftRight aria-hidden size={15} />
+                Transfer banker
+              </button>
+            ) : null}
+          </div>
           <p className={`${sectionLabel} mt-4`}>At the table</p>
 
           {message ? <div className="mt-3">{errorBanner}</div> : null}
+          {confirmation ? <p className="mt-3 rounded-2xl bg-surface-2 p-3 text-sm text-positive">{confirmation}</p> : null}
 
           <section className={`${tile} mt-2.5`}>
             {players.map((player, index) => {
@@ -423,6 +477,38 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
               <input className="h-14 min-w-0 flex-1 rounded-2xl bg-surface-2 px-4 text-[17px] text-ink focus:ring-2 focus:ring-white/15 outline-none" onChange={(event) => setNewName(event.target.value)} placeholder="Name" value={newName} />
               <button className={`${secondaryButton} w-auto px-5`} disabled={!newName.trim() || Boolean(busy)}>Add</button>
             </form>
+          </BottomSheet>
+
+          <BottomSheet
+            eyebrow="This cannot be undone by you"
+            onClose={() => setTransferOpen(false)}
+            open={transferOpen}
+            title="Transfer banker"
+          >
+            {eligibleTransfers.length ? (
+              <div className="divide-y divide-line">
+                {eligibleTransfers.map(({ player, member }) => (
+                  <div className="flex min-h-16 items-center gap-3 py-2" key={player.id}>
+                    <PlayerAvatar name={member.display_name} size="md" />
+                    <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{member.display_name}</p>
+                    <button
+                      className="h-10 shrink-0 rounded-full bg-surface-2 px-4 text-[13px] font-semibold text-ink transition active:scale-[0.98] disabled:text-ink-3"
+                      disabled={Boolean(busy)}
+                      onClick={() => void transferBanker(member)}
+                      type="button"
+                    >
+                      {busy === `transfer-${member.id}` ? "Transferring…" : "Transfer"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-surface-2 p-4">
+                <p className="text-[14px] leading-5 text-ink-2">No players with accounts available. They need to sign up and join the group first.</p>
+                <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-3">Invite code</p>
+                <p className="mt-1 text-[17px] font-semibold tracking-[0.08em] text-ink">{group.invite_code}</p>
+              </div>
+            )}
           </BottomSheet>
         </motion.div>
       )}
