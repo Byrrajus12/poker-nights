@@ -7,6 +7,7 @@ import { SettlementView, type SettlementPlayerItem, type SettlementViewItem } fr
 type PlayerCashout = {
   memberId: string;
   displayName: string;
+  avatarUrl: string | null;
   cashoutTotal: number;
   buyinTotal: number;
   preferredPaymentMethod: SettlementPaymentMethod | null;
@@ -76,7 +77,7 @@ export default async function SettleSessionPage({
       .order("joined_at", { ascending: true }),
     supabase
       .from("group_members")
-      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+      .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
       .eq("group_id", groupId),
     supabase
       .from("settlements")
@@ -130,6 +131,7 @@ export default async function SettleSessionPage({
       id: settlement.id,
       toMemberId: settlement.to_member_id,
       toDisplayName: toMember?.display_name ?? "Unknown player",
+      toAvatarUrl: toMember?.avatar_url ?? null,
       amount: settlement.amount,
       paymentMethod: settlement.payment_method,
       isPaid: session.status === "settled" ? true : settlement.is_paid,
@@ -142,6 +144,7 @@ export default async function SettleSessionPage({
   const settlementPlayers: SettlementPlayerItem[] = players.map((player) => ({
     memberId: player.memberId,
     displayName: player.displayName,
+    avatarUrl: player.avatarUrl,
     buyinTotal: player.buyinTotal,
     cashoutTotal: player.cashoutTotal,
     net: player.cashoutTotal - player.buyinTotal,
@@ -207,6 +210,7 @@ function buildPlayerCashouts(
       {
         memberId: player.member_id,
         displayName: member.display_name,
+        avatarUrl: member.avatar_url,
         cashoutTotal,
         buyinTotal,
         preferredPaymentMethod: latestBuyin?.payment_method ?? null,

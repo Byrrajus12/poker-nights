@@ -18,7 +18,7 @@ export default async function DashboardPage() {
 
   const [groupsResult, membersResult, sessionsResult] = groupIds.length ? await Promise.all([
     supabase.from("groups").select("id,name,invite_code,created_by,buyin_presets,created_at").in("id", groupIds),
-    supabase.from("group_members").select("group_id,display_name").in("group_id", groupIds).order("created_at"),
+    supabase.from("group_members").select("group_id,display_name,avatar_url").in("group_id", groupIds).order("created_at"),
     supabase.from("sessions").select("id,group_id,status,started_at").in("group_id", groupIds).order("started_at", { ascending: false }),
   ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
   if (groupsResult.error || membersResult.error || sessionsResult.error) throw new Error(groupsResult.error?.message ?? membersResult.error?.message ?? sessionsResult.error?.message ?? "Could not load dashboard");
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
                     <div className="mt-6 flex items-center justify-between gap-3">
                       <div className="flex -space-x-2">
                         {group.members.slice(0, 4).map((member, index) => (
-                          <PlayerAvatar key={`${member.display_name}-${index}`} name={member.display_name} ring size="md" />
+                          <PlayerAvatar avatarUrl={member.avatar_url} key={`${member.display_name}-${index}`} name={member.display_name} ring size="md" />
                         ))}
                       </div>
                       <span className="text-[15px] font-semibold text-on-felt">
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
                 <div className="mt-3 flex items-center gap-2.5">
                   <div className="flex -space-x-2">
                     {group.members.slice(0, 4).map((member, index) => (
-                      <PlayerAvatar key={`${member.display_name}-${index}`} name={member.display_name} size="sm" />
+                      <PlayerAvatar avatarUrl={member.avatar_url} key={`${member.display_name}-${index}`} name={member.display_name} size="sm" />
                     ))}
                   </div>
                   <span className="text-[13px] text-ink-2">

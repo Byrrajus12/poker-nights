@@ -51,7 +51,7 @@ export function MemberHandleEditor({ initialMembers, canEdit }: Props) {
           const editable = canEdit && !member.is_claimed;
           return (
             <button className={`flex shrink-0 flex-col items-center gap-2 ${editable ? "cursor-pointer" : "cursor-default"}`} disabled={!editable} key={member.id} onClick={() => open(member)} type="button">
-              <PlayerAvatar name={member.display_name} size="lg" />
+              <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="lg" />
               <span className="max-w-14 truncate text-center text-[13px] text-ink-2">{member.display_name}</span>
             </button>
           );

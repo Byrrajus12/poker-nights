@@ -177,13 +177,13 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
     setBusy(`player-${member.id}`);
     const { data, error } = await supabase.from("session_players").insert({ session_id: session.id, member_id: member.id }).select("id,session_id,member_id,joined_at").single();
     setBusy(null); if (error) { setMessage(error.message); return; }
-    setPlayers((current) => [...current, { ...data, member: { id: member.id, display_name: member.display_name } }]); setAddOpen(false);
+    setPlayers((current) => [...current, { ...data, member: { id: member.id, display_name: member.display_name, avatar_url: member.avatar_url } }]); setAddOpen(false);
   }
 
   async function addNew(event: FormEvent) {
     event.preventDefault(); const name = newName.trim(); if (!name) return;
     setBusy("new-player");
-    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").single();
+    const { data: member, error } = await supabase.from("group_members").insert({ group_id: group.id, display_name: name }).select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").single();
     if (error) { setBusy(null); setMessage(error.message); return; }
     setMembers((current) => [...current, member]); setNewName(""); await addExisting(member);
   }
@@ -274,7 +274,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
               const summary = summaries.get(player.member_id);
               return (
                 <div className={`flex items-center gap-3 p-3.5 ${index > 0 ? "border-t border-line" : ""} ${summary?.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
-                  <PlayerAvatar name={player.member.display_name} size="md" />
+                  <PlayerAvatar avatarUrl={player.member.avatar_url} name={player.member.display_name} size="md" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-ink">{player.member.display_name}</p>
                     <p className="text-[13px] tabular-nums text-ink-2">In {formatCents(summary?.buyins ?? 0)}</p>
@@ -381,7 +381,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
                 <article className={`relative p-3.5 ${index > 0 ? "border-t border-line" : ""} ${summary.hasCashedOut ? "opacity-55" : ""}`} key={player.id}>
                   <div className="flex items-center justify-between gap-1.5">
                     <button className="flex min-h-11 min-w-0 flex-1 items-center gap-3 text-left" onClick={() => setDetailTarget(player)} type="button">
-                      <PlayerAvatar name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
+                      <PlayerAvatar avatarUrl={player.member.avatar_url} name={player.member.display_name} ring={!summary.hasCashedOut} size="md" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-semibold text-ink">{player.member.display_name}</span>
                         {summary.hasCashedOut
@@ -466,7 +466,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
             <div className="divide-y divide-line">
               {available.map((member) => (
                 <button className="flex h-14 w-full items-center gap-3 text-left" disabled={Boolean(busy)} key={member.id} onClick={() => addExisting(member)} type="button">
-                  <PlayerAvatar name={member.display_name} size="sm" />
+                  <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="sm" />
                   <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{member.display_name}</span>
                   <Plus aria-hidden className="text-accent" size={20} />
                 </button>
@@ -489,7 +489,7 @@ export function ActiveSession({ session, group, players: initialPlayers, groupMe
               <div className="divide-y divide-line">
                 {eligibleTransfers.map(({ player, member }) => (
                   <div className="flex min-h-16 items-center gap-3 py-2" key={player.id}>
-                    <PlayerAvatar name={member.display_name} size="md" />
+                    <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="md" />
                     <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{member.display_name}</p>
                     <button
                       className="h-10 shrink-0 rounded-full bg-surface-2 px-4 text-[13px] font-semibold text-ink transition active:scale-[0.98] disabled:text-ink-3"

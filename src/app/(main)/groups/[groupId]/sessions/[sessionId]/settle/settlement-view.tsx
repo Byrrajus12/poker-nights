@@ -17,8 +17,8 @@ import { formatCents, formatDuration, formatSessionDate } from "@/lib/utils";
 import type { Database, SessionStatus, Settlement, SettlementPaymentMethod } from "@/types";
 
 type PaymentHandles = { venmo: string | null; cashapp: string | null; zelle: string | null };
-export type SettlementViewItem = { id: string; toMemberId: string; toDisplayName: string; amount: number; paymentMethod: SettlementPaymentMethod | null; isPaid: boolean; paidAt: string | null; suggestedPaymentMethod: SettlementPaymentMethod | null; handles: PaymentHandles };
-export type PlayerResultItem = { memberId: string; displayName: string; buyinTotal: number; cashoutTotal: number; net: number };
+export type SettlementViewItem = { id: string; toMemberId: string; toDisplayName: string; toAvatarUrl: string | null; amount: number; paymentMethod: SettlementPaymentMethod | null; isPaid: boolean; paidAt: string | null; suggestedPaymentMethod: SettlementPaymentMethod | null; handles: PaymentHandles };
+export type PlayerResultItem = { memberId: string; displayName: string; avatarUrl: string | null; buyinTotal: number; cashoutTotal: number; net: number };
 export type SettlementPlayerItem = PlayerResultItem & { preferredPaymentMethod: SettlementPaymentMethod | null; handles: PaymentHandles };
 type Props = { groupId: string; sessionId: string; settlements: SettlementViewItem[]; bankerDisplayName: string; bankerMemberId: string; currentMemberId: string | null; isBanker: boolean; isSettled: boolean; sessionStatus: SessionStatus; startedAt: string; endedAt: string | null; players: SettlementPlayerItem[] };
 const label = (method: SettlementPaymentMethod | null) => !method ? "manual" : method === "cashapp" ? "Cash App" : method.charAt(0).toUpperCase() + method.slice(1);
@@ -168,7 +168,7 @@ export function SettlementView({ groupId, sessionId, settlements: initial, banke
             const isPodium = index === 0 && player.net > 0;
             return (
               <div className={`flex items-center gap-3 px-4 py-3.5 ${isPodium ? "bg-surface-2" : ""}`} key={player.memberId}>
-                <PlayerAvatar name={player.displayName} ring={isPodium} size="sm" />
+                <PlayerAvatar avatarUrl={player.avatarUrl} name={player.displayName} ring={isPodium} size="sm" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-ink">
                     {player.displayName}
@@ -224,7 +224,7 @@ export function SettlementView({ groupId, sessionId, settlements: initial, banke
                     transition={reducedMotion ? { duration: 0 } : { duration: 0.2 }}
                     type="button"
                   >
-                    <PlayerAvatar name={item.toDisplayName} size="sm" />
+                    <PlayerAvatar avatarUrl={item.toAvatarUrl} name={item.toDisplayName} size="sm" />
                     <p className="min-w-0 flex-1 truncate text-[15px] font-semibold text-ink">{item.toDisplayName}</p>
                     <AmountDisplay amount={item.amount} className="!text-[15px]" size="md" />
                     <span className="grid size-6 place-items-center rounded-full bg-positive/15 text-positive"><Check aria-hidden size={15} /></span>
@@ -241,7 +241,7 @@ export function SettlementView({ groupId, sessionId, settlements: initial, banke
                   transition={reducedMotion ? { duration: 0 } : { duration: 0.2 }}
                 >
                   <div className="flex items-center gap-3">
-                    <PlayerAvatar name={item.toDisplayName} size="sm" />
+                    <PlayerAvatar avatarUrl={item.toAvatarUrl} name={item.toDisplayName} size="sm" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[15px] font-semibold text-ink">{isBanker ? `Pay ${item.toDisplayName}` : `${bankerDisplayName} owes you`}</p>
                       <p className="text-[13px] text-ink-2">Paid in via {label(item.suggestedPaymentMethod)}</p>
@@ -329,6 +329,7 @@ function toSettlementViewItem(
     id: settlement.id,
     toMemberId: settlement.to_member_id,
     toDisplayName: player?.displayName ?? "Unknown player",
+    toAvatarUrl: player?.avatarUrl ?? null,
     amount: settlement.amount,
     paymentMethod: settlement.payment_method,
     isPaid: isSettled ? true : settlement.is_paid,

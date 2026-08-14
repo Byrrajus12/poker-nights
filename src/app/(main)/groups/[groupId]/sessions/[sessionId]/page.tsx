@@ -4,7 +4,7 @@ import type { GroupMember, SessionPlayer } from "@/types";
 import { ActiveSession } from "./active-session";
 
 export type SessionPlayerWithMember = SessionPlayer & {
-  member: Pick<GroupMember, "id" | "display_name">;
+  member: Pick<GroupMember, "id" | "display_name" | "avatar_url">;
 };
 
 export default async function SessionPage({
@@ -61,7 +61,7 @@ export default async function SessionPage({
       .order("created_at", { ascending: true }),
     supabase
       .from("group_members")
-      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+      .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
       .eq("group_id", groupId)
       .order("display_name", { ascending: true }),
     supabase.auth.getUser(),
@@ -105,6 +105,7 @@ export default async function SessionPage({
         member: {
           id: member.id,
           display_name: member.display_name,
+          avatar_url: member.avatar_url,
         },
       },
     ];

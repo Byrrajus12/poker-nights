@@ -80,7 +80,7 @@ export function NewSessionForm({
         role: "member",
         user_id: null,
       })
-      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+      .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
       .single();
 
     if (memberError) {
@@ -173,7 +173,7 @@ export function NewSessionForm({
                     <Check size={12} strokeWidth={2.5} />
                   </span>
                 ) : null}
-                <PlayerAvatar name={member.display_name} size="lg" />
+                <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="lg" />
                 <span className="w-full truncate text-[14px] font-semibold text-ink">
                   {member.display_name}
                 </span>

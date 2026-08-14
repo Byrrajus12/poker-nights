@@ -56,7 +56,7 @@ export default async function NewSessionPage({
 
   const { data: members, error: membersError } = await supabase
     .from("group_members")
-    .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+    .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
     .eq("group_id", groupId)
     .order("display_name", { ascending: true });
 
