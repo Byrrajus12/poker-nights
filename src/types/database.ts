@@ -15,6 +15,9 @@ export interface Database {
           avatar_url: string | null;
           preferred_payment_method: PaymentMethod | null;
           preferred_payment_handle: string | null;
+          venmo_handle: string | null;
+          cashapp_handle: string | null;
+          zelle_handle: string | null;
           created_at: string;
         };
         Insert: {
@@ -24,6 +27,9 @@ export interface Database {
           avatar_url?: string | null;
           preferred_payment_method?: PaymentMethod | null;
           preferred_payment_handle?: string | null;
+          venmo_handle?: string | null;
+          cashapp_handle?: string | null;
+          zelle_handle?: string | null;
           created_at?: string;
         };
         Update: {
@@ -33,6 +39,9 @@ export interface Database {
           avatar_url?: string | null;
           preferred_payment_method?: PaymentMethod | null;
           preferred_payment_handle?: string | null;
+          venmo_handle?: string | null;
+          cashapp_handle?: string | null;
+          zelle_handle?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -72,8 +81,9 @@ export interface Database {
           display_name: string;
           role: MemberRole;
           is_claimed: boolean;
-          payment_handle: string | null;
-          payment_method: SettlementPaymentMethod | null;
+          venmo_handle: string | null;
+          cashapp_handle: string | null;
+          zelle_handle: string | null;
           created_at: string;
         };
         Insert: {
@@ -83,8 +93,9 @@ export interface Database {
           display_name: string;
           role?: MemberRole;
           is_claimed?: boolean;
-          payment_handle?: string | null;
-          payment_method?: SettlementPaymentMethod | null;
+          venmo_handle?: string | null;
+          cashapp_handle?: string | null;
+          zelle_handle?: string | null;
           created_at?: string;
         };
         Update: {
@@ -94,8 +105,9 @@ export interface Database {
           display_name?: string;
           role?: MemberRole;
           is_claimed?: boolean;
-          payment_handle?: string | null;
-          payment_method?: SettlementPaymentMethod | null;
+          venmo_handle?: string | null;
+          cashapp_handle?: string | null;
+          zelle_handle?: string | null;
           created_at?: string;
         };
         Relationships: [];
