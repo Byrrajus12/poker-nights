@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import type { Group, GroupMember } from "@/types";
 import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { ChevronRight } from "lucide-react";
+import { claimMember as claimMemberAction, joinAsNew as joinAsNewAction } from "./actions";
 
 type ClaimFlowProps = {
   group: Pick<Group, "id" | "name">;
@@ -23,101 +23,46 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
     [members],
   );
 
-  async function getCurrentUser() {
-    const supabase = createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      router.push("/login");
-      return null;
-    }
-
-    return user;
-  }
-
   async function claimMember(memberId: string) {
     setError("");
     setPendingId(memberId);
 
-    const user = await getCurrentUser();
-    if (!user) return;
+    try {
+      const result = await claimMemberAction(memberId, group.id);
+      if ("error" in result && result.error) {
+        setError(result.error);
+        router.refresh();
+        return;
+      }
 
-    const supabase = createClient();
-    const member = members.find((item) => item.id === memberId);
-    const { data: profile } = await supabase
-      .from("users")
-      .select("avatar_url")
-      .eq("id", user.id)
-      .maybeSingle();
-    const { data, error: claimError } = await supabase
-      .from("group_members")
-      .update({
-        user_id: user.id,
-        is_claimed: true,
-        ...(!member?.avatar_url && profile?.avatar_url ? { avatar_url: profile.avatar_url } : {}),
-      })
-      .eq("id", memberId)
-      .eq("group_id", group.id)
-      .eq("is_claimed", false)
-      .is("user_id", null)
-      .select("id")
-      .maybeSingle();
-
-    setPendingId(null);
-
-    if (claimError || !data) {
-      setError("That name was just claimed. Pick another or join as new.");
+      router.push(`/groups/${result.groupId}`);
+    } catch {
+      setError("We couldn't claim that player. Try again in a moment.");
       router.refresh();
-      return;
+    } finally {
+      setPendingId(null);
     }
-
-    router.push(`/groups/${group.id}`);
   }
 
   async function joinAsNew() {
     setError("");
     setIsJoiningNew(true);
 
-    const user = await getCurrentUser();
-    if (!user) return;
+    try {
+      const result = await joinAsNewAction(group.id);
+      if ("error" in result && result.error) {
+        setError(result.error);
+        router.refresh();
+        return;
+      }
 
-    const supabase = createClient();
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .select("display_name,avatar_url")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      setError("We couldn't load your profile. Try again in a moment.");
-      setIsJoiningNew(false);
-      return;
-    }
-
-    const displayName =
-      profile?.display_name ?? user.email?.split("@")[0] ?? "New player";
-
-    const { error: insertError } = await supabase.from("group_members").insert({
-      group_id: group.id,
-      user_id: user.id,
-      display_name: displayName,
-      avatar_url: profile?.avatar_url ?? null,
-      role: "member",
-      is_claimed: true,
-    });
-
-    setIsJoiningNew(false);
-
-    if (insertError) {
-      setError(insertError.message);
+      router.push(`/groups/${result.groupId}`);
+    } catch {
+      setError("We couldn't add you to the group. Try again in a moment.");
       router.refresh();
-      return;
+    } finally {
+      setIsJoiningNew(false);
     }
-
-    router.push(`/groups/${group.id}`);
   }
 
   const isBusy = pendingId !== null || isJoiningNew;
