@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import ClaimFlow from "./claim-flow";
 
@@ -43,6 +44,8 @@ export default async function JoinWithCodePage({
     );
   }
 
+  const adminSupabase = createAdminClient();
+
   if (user) {
     const [
       { data: existingMember },
@@ -54,7 +57,7 @@ export default async function JoinWithCodePage({
         .eq("group_id", group.id)
         .eq("user_id", user.id)
         .maybeSingle(),
-      supabase
+      adminSupabase
         .from("group_members")
         .select("id, display_name, avatar_url, is_claimed")
         .eq("group_id", group.id)
@@ -68,7 +71,7 @@ export default async function JoinWithCodePage({
     return <ClaimFlow group={group} members={members ?? []} />;
   }
 
-  const { data: members } = await supabase
+  const { data: members } = await adminSupabase
     .from("group_members")
     .select("id, display_name, avatar_url, is_claimed")
     .eq("group_id", group.id)
