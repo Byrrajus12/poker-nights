@@ -23,11 +23,30 @@ export default async function NewSessionPage({
     redirect("/login");
   }
 
-  const { data: group, error: groupError } = await supabase
-    .from("groups")
-    .select("id,name,invite_code,created_by,buyin_presets,created_at")
-    .eq("id", groupId)
-    .maybeSingle();
+  const [
+    { data: group, error: groupError },
+    { data: activeSession, error: activeSessionError },
+    { data: members, error: membersError },
+  ] = await Promise.all([
+    supabase
+      .from("groups")
+      .select("id,name,invite_code,created_by,buyin_presets,created_at")
+      .eq("id", groupId)
+      .maybeSingle(),
+    supabase
+      .from("sessions")
+      .select("id")
+      .eq("group_id", groupId)
+      .eq("status", "active")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("group_members")
+      .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+      .eq("group_id", groupId)
+      .order("display_name", { ascending: true }),
+  ]);
 
   if (groupError) {
     throw new Error(groupError.message);
@@ -37,15 +56,6 @@ export default async function NewSessionPage({
     notFound();
   }
 
-  const { data: activeSession, error: activeSessionError } = await supabase
-    .from("sessions")
-    .select("id")
-    .eq("group_id", groupId)
-    .eq("status", "active")
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
   if (activeSessionError) {
     throw new Error(activeSessionError.message);
   }
@@ -53,12 +63,6 @@ export default async function NewSessionPage({
   if (activeSession) {
     redirect(`/groups/${groupId}/sessions/${activeSession.id}`);
   }
-
-  const { data: members, error: membersError } = await supabase
-    .from("group_members")
-    .select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
-    .eq("group_id", groupId)
-    .order("display_name", { ascending: true });
 
   if (membersError) {
     throw new Error(membersError.message);

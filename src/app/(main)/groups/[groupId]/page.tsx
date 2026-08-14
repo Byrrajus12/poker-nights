@@ -13,15 +13,20 @@ import { MemberHandleEditor } from "./member-handle-editor";
 export default async function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
   const { groupId } = await params;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: group, error: groupError } = await supabase.from("groups").select("id,name,invite_code,created_by,buyin_presets,created_at").eq("id", groupId).maybeSingle();
-  if (groupError) throw new Error(groupError.message);
-  if (!group) notFound();
-
-  const [membersResult, sessionsResult] = await Promise.all([
+  const [
+    { data: { user }, error: userError },
+    { data: group, error: groupError },
+    membersResult,
+    sessionsResult,
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from("groups").select("id,name,invite_code,created_by,buyin_presets,created_at").eq("id", groupId).maybeSingle(),
     supabase.from("group_members").select("id,group_id,user_id,display_name,avatar_url,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").eq("group_id", groupId).order("created_at"),
     supabase.from("sessions").select("id,group_id,banker_id,status,started_at,ended_at,notes").eq("group_id", groupId).order("started_at", { ascending: false }),
   ]);
+  if (userError) throw new Error(userError.message);
+  if (groupError) throw new Error(groupError.message);
+  if (!group) notFound();
   if (membersResult.error || sessionsResult.error) throw new Error(membersResult.error?.message ?? sessionsResult.error?.message ?? "Could not load group");
   const members = membersResult.data ?? [];
   const sessions = sessionsResult.data ?? [];

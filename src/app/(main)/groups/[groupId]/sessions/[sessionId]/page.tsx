@@ -15,26 +15,8 @@ export default async function SessionPage({
   const { groupId, sessionId } = await params;
   const supabase = await createClient();
 
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("id,group_id,banker_id,status,started_at,ended_at,notes")
-    .eq("id", sessionId)
-    .eq("group_id", groupId)
-    .maybeSingle();
-
-  if (sessionError) {
-    throw new Error(sessionError.message);
-  }
-
-  if (!session) {
-    notFound();
-  }
-
-  if (session.status !== "active") {
-    redirect(`/groups/${groupId}/sessions/${sessionId}/settle`);
-  }
-
   const [
+    { data: session, error: sessionError },
     { data: group, error: groupError },
     { data: sessionPlayers, error: playersError },
     { data: transactions, error: transactionsError },
@@ -44,6 +26,12 @@ export default async function SessionPage({
       error: userError,
     },
   ] = await Promise.all([
+    supabase
+      .from("sessions")
+      .select("id,group_id,banker_id,status,started_at,ended_at,notes")
+      .eq("id", sessionId)
+      .eq("group_id", groupId)
+      .maybeSingle(),
     supabase
       .from("groups")
       .select("id,name,invite_code,created_by,buyin_presets,created_at")
@@ -66,6 +54,18 @@ export default async function SessionPage({
       .order("display_name", { ascending: true }),
     supabase.auth.getUser(),
   ]);
+
+  if (sessionError) {
+    throw new Error(sessionError.message);
+  }
+
+  if (!session) {
+    notFound();
+  }
+
+  if (session.status !== "active") {
+    redirect(`/groups/${groupId}/sessions/${sessionId}/settle`);
+  }
 
   if (groupError) {
     throw new Error(groupError.message);

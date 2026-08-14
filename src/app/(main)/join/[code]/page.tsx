@@ -11,11 +11,17 @@ export default async function JoinWithCodePage({
   const { code } = await params;
   const supabase = await createClient();
 
-  const { data: group, error: groupError } = await supabase
-    .from("groups")
-    .select("id, name")
-    .eq("invite_code", code)
-    .maybeSingle();
+  const [
+    { data: group, error: groupError },
+    { data: { user } },
+  ] = await Promise.all([
+    supabase
+      .from("groups")
+      .select("id, name")
+      .eq("invite_code", code)
+      .maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
 
   if (groupError || !group) {
     return (
@@ -37,21 +43,29 @@ export default async function JoinWithCodePage({
     );
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   if (user) {
-    const { data: existingMember } = await supabase
-      .from("group_members")
-      .select("id")
-      .eq("group_id", group.id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const [
+      { data: existingMember },
+      { data: members },
+    ] = await Promise.all([
+      supabase
+        .from("group_members")
+        .select("id")
+        .eq("group_id", group.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("group_members")
+        .select("id, display_name, avatar_url, is_claimed")
+        .eq("group_id", group.id)
+        .order("display_name", { ascending: true }),
+    ]);
 
     if (existingMember) {
       redirect(`/groups/${group.id}`);
     }
+
+    return <ClaimFlow group={group} members={members ?? []} />;
   }
 
   const { data: members } = await supabase

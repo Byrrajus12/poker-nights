@@ -27,44 +27,24 @@ export default async function SettleSessionPage({
   const { groupId, sessionId } = await params;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError) {
-    throw new Error(userError.message);
-  }
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: session, error: sessionError } = await supabase
-    .from("sessions")
-    .select("id,group_id,banker_id,status,started_at,ended_at,notes")
-    .eq("id", sessionId)
-    .eq("group_id", groupId)
-    .maybeSingle();
-
-  if (sessionError) {
-    throw new Error(sessionError.message);
-  }
-
-  if (!session) {
-    notFound();
-  }
-
-  if (session.status === "active") {
-    redirect(`/groups/${groupId}/sessions/${sessionId}`);
-  }
-
   const [
+    {
+      data: { user },
+      error: userError,
+    },
+    { data: session, error: sessionError },
     { data: transactions, error: transactionsError },
     { data: sessionPlayers, error: playersError },
     { data: rosterMembers, error: membersError },
     { data: existingSettlements, error: existingSettlementsError },
   ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase
+      .from("sessions")
+      .select("id,group_id,banker_id,status,started_at,ended_at,notes")
+      .eq("id", sessionId)
+      .eq("group_id", groupId)
+      .maybeSingle(),
     supabase
       .from("transactions")
       .select("id,session_id,member_id,type,amount,created_by,created_at,payment_method")
@@ -85,6 +65,26 @@ export default async function SettleSessionPage({
       .eq("session_id", sessionId)
       .order("amount", { ascending: false }),
   ]);
+
+  if (userError) {
+    throw new Error(userError.message);
+  }
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (sessionError) {
+    throw new Error(sessionError.message);
+  }
+
+  if (!session) {
+    notFound();
+  }
+
+  if (session.status === "active") {
+    redirect(`/groups/${groupId}/sessions/${sessionId}`);
+  }
 
   if (transactionsError) {
     throw new Error(transactionsError.message);
@@ -227,6 +227,8 @@ async function getPlayerPaymentInfo(
     .filter((member) => playerMemberIds.has(member.id) && member.user_id)
     .map((member) => member.user_id as string);
 
+  // The users table only allows reading the current user's row. Settlement
+  // recipients' handles therefore require this intentional service-role read.
   const admin = createAdminClient();
   const { data: users, error } = recipientUserIds.length > 0
     ? await admin.from("users").select("id,venmo_handle,cashapp_handle,zelle_handle").in("id", recipientUserIds)
