@@ -1,7 +1,8 @@
 "use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
-import { Camera, Check, Pencil, ShieldCheck, X } from "lucide-react";
+import Link from "next/link";
+import { Camera, Check, ChevronRight, Pencil, ShieldCheck, X } from "lucide-react";
 import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { validateAvatarFile } from "@/lib/avatar-upload";
 import { createClient } from "@/lib/supabase/client";
@@ -156,7 +157,7 @@ export function MemberRoleManager({ creatorId, currentUserId, initialMembers }: 
                   </button>
                 </div>
               ) : null}
-              {isAdmin && member.is_claimed && !isCreator ? (
+              {isAdmin && member.is_claimed && !isCreator && !(member.user_id === currentUserId && member.role === "admin") ? (
                 <button
                   className="min-h-10 shrink-0 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-ink transition active:scale-[0.98] disabled:text-ink-3"
                   disabled={Boolean(busyId)}
@@ -166,6 +167,13 @@ export function MemberRoleManager({ creatorId, currentUserId, initialMembers }: 
                   {isBusy ? "Saving…" : member.role === "admin" ? "Remove admin" : "Make admin"}
                 </button>
               ) : null}
+              <Link
+                aria-label={`View ${member.display_name}'s profile`}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-3 transition active:bg-surface-2"
+                href={`/groups/${member.group_id}/members/${member.id}`}
+              >
+                <ChevronRight size={18} />
+              </Link>
             </article>
           );
         })}
