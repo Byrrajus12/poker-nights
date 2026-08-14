@@ -19,12 +19,14 @@ export function LoginForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [isAwaitingConfirmation, setIsAwaitingConfirmation] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   function changeMode(nextMode: AuthMode) {
     setMode(nextMode);
     setError("");
     setMessage("");
+    setIsAwaitingConfirmation(false);
     setPassword("");
     setConfirmPassword("");
   }
@@ -61,7 +63,7 @@ export function LoginForm() {
       const normalizedEmail = email.trim();
 
       if (mode === "sign-up") {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data, error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
           options: {
@@ -71,6 +73,17 @@ export function LoginForm() {
 
         if (signUpError) {
           setError(signUpError.message);
+          return;
+        }
+
+        if (!data.session) {
+          if (!data.user) {
+            setError("Something went wrong. Please try again.");
+            return;
+          }
+
+          setMessage("Check your email to confirm your account.");
+          setIsAwaitingConfirmation(true);
           return;
         }
 
@@ -149,11 +162,29 @@ export function LoginForm() {
             : "Welcome back. Sign in to continue."}
       </p>
 
-      <form
-        className="mt-7"
-        noValidate
-        onSubmit={isMagicLink ? handleMagicLinkSubmit : handlePasswordSubmit}
-      >
+      {isAwaitingConfirmation ? (
+        <div className="mt-7">
+          <p
+            className="rounded-2xl bg-surface p-3 text-sm text-positive"
+            role="status"
+          >
+            {message}
+          </p>
+          <button
+            className="mt-4 h-14 w-full rounded-full bg-accent text-accent-ink text-[17px] font-semibold active:scale-[0.98] transition"
+            onClick={() => changeMode("sign-in")}
+            type="button"
+          >
+            Back to login
+          </button>
+        </div>
+      ) : (
+        <>
+          <form
+            className="mt-7"
+            noValidate
+            onSubmit={isMagicLink ? handleMagicLinkSubmit : handlePasswordSubmit}
+          >
         <label
           className="mb-2 block text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3"
           htmlFor="email"
@@ -253,43 +284,45 @@ export function LoginForm() {
             {error}
           </p>
         ) : null}
-      </form>
+          </form>
 
-      <div className="mt-6 text-center text-[15px] text-ink-2">
-        {isMagicLink ? (
-          <button
-            className="font-semibold text-accent disabled:text-ink-3"
-            disabled={isLoading}
-            onClick={() => changeMode("sign-in")}
-            type="button"
-          >
-            Sign in with password
-          </button>
-        ) : (
-          <>
-            <button
-              className="font-semibold text-accent disabled:text-ink-3"
-              disabled={isLoading}
-              onClick={() => changeMode("magic-link")}
-              type="button"
-            >
-              Sign in with magic link
-            </button>
-            <div className="my-5 h-px bg-line" />
-            <p>
-              {isSignUp ? "Already have an account?" : "New to Poker Nights?"}{" "}
+          <div className="mt-6 text-center text-[15px] text-ink-2">
+            {isMagicLink ? (
               <button
                 className="font-semibold text-accent disabled:text-ink-3"
                 disabled={isLoading}
-                onClick={() => changeMode(isSignUp ? "sign-in" : "sign-up")}
+                onClick={() => changeMode("sign-in")}
                 type="button"
               >
-                {isSignUp ? "Sign in" : "Sign up"}
+                Sign in with password
               </button>
-            </p>
-          </>
-        )}
-      </div>
+            ) : (
+              <>
+                <button
+                  className="font-semibold text-accent disabled:text-ink-3"
+                  disabled={isLoading}
+                  onClick={() => changeMode("magic-link")}
+                  type="button"
+                >
+                  Sign in with magic link
+                </button>
+                <div className="my-5 h-px bg-line" />
+                <p>
+                  {isSignUp ? "Already have an account?" : "New to Poker Nights?"}{" "}
+                  <button
+                    className="font-semibold text-accent disabled:text-ink-3"
+                    disabled={isLoading}
+                    onClick={() => changeMode(isSignUp ? "sign-in" : "sign-up")}
+                    type="button"
+                  >
+                    {isSignUp ? "Sign in" : "Sign up"}
+                  </button>
+                </p>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </main>
   );
 }
