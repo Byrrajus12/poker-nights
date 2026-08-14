@@ -65,7 +65,7 @@ export function MemberRoleManager({ creatorId, currentUserId, initialMembers }: 
                   {isCreator ? " · Creator" : ""}
                 </p>
               </div>
-              {isAdmin && !isCreator ? (
+              {isAdmin && member.is_claimed && !isCreator ? (
                 <button
                   className="min-h-10 shrink-0 rounded-full bg-surface-2 px-3 text-[13px] font-semibold text-ink transition active:scale-[0.98] disabled:text-ink-3"
                   disabled={Boolean(busyId)}
