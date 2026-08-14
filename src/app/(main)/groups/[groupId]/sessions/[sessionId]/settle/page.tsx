@@ -1,9 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { calculateSettlements } from "@/lib/settlements";
-import type { GroupMember, Settlement, SettlementPaymentMethod, Transaction } from "@/types";
-import { SettlementView, type PlayerResultItem, type SettlementViewItem } from "./settlement-view";
+import type { GroupMember, SettlementPaymentMethod, Transaction } from "@/types";
+import { SettlementView, type SettlementPlayerItem, type SettlementViewItem } from "./settlement-view";
 
 type PlayerCashout = {
   memberId: string;
@@ -14,7 +13,9 @@ type PlayerCashout = {
 };
 
 type PaymentInfo = {
-  preferredPaymentHandle: string | null;
+  venmo: string | null;
+  cashapp: string | null;
+  zelle: string | null;
 };
 
 export default async function SettleSessionPage({
@@ -75,12 +76,13 @@ export default async function SettleSessionPage({
       .order("joined_at", { ascending: true }),
     supabase
       .from("group_members")
-      .select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at")
+      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
       .eq("group_id", groupId),
     supabase
       .from("settlements")
       .select("id,session_id,from_member_id,to_member_id,amount,payment_method,is_paid,paid_at")
-      .eq("session_id", sessionId),
+      .eq("session_id", sessionId)
+      .order("amount", { ascending: false }),
   ]);
 
   if (transactionsError) {
@@ -112,40 +114,16 @@ export default async function SettleSessionPage({
     players.map((player) => [player.memberId, player.preferredPaymentMethod]),
   );
 
-  if ((existingSettlements ?? []).length === 0) {
-    const settlementRows = calculateSettlements(players, bankerMember.id).map((settlement) => ({
-      session_id: sessionId,
-      from_member_id: bankerMember.id,
-      to_member_id: settlement.toMemberId,
-      amount: settlement.amount,
-      payment_method: normalizePaymentMethod(settlement.suggestedPaymentMethod),
-    }));
-
-    if (settlementRows.length > 0) {
-      const admin = createAdminClient();
-      const { error: insertError } = await admin.from("settlements").insert(settlementRows);
-
-      if (insertError) {
-        throw new Error(insertError.message);
-      }
-    }
-  }
-
-  const { data: settlements, error: settlementsError } = await supabase
-    .from("settlements")
-    .select("id,session_id,from_member_id,to_member_id,amount,payment_method,is_paid,paid_at")
-    .eq("session_id", sessionId)
-    .order("amount", { ascending: false });
-
-  if (settlementsError) {
-    throw new Error(settlementsError.message);
-  }
-
-  const paymentInfoByMemberId = await getRecipientPaymentInfo(rosterMembers ?? [], settlements ?? []);
-  const viewSettlements: SettlementViewItem[] = (settlements ?? []).map((settlement) => {
+  const paymentInfoByMemberId = await getPlayerPaymentInfo(
+    rosterMembers ?? [],
+    new Set(players.map((player) => player.memberId)),
+  );
+  const viewSettlements: SettlementViewItem[] = (existingSettlements ?? []).map((settlement) => {
     const toMember = membersById.get(settlement.to_member_id);
     const paymentInfo = paymentInfoByMemberId.get(settlement.to_member_id) ?? {
-      preferredPaymentHandle: null,
+      venmo: null,
+      cashapp: null,
+      zelle: null,
     };
 
     return {
@@ -158,29 +136,37 @@ export default async function SettleSessionPage({
       paidAt: settlement.paid_at,
       suggestedPaymentMethod:
         settlement.payment_method ?? suggestedMethodByMemberId.get(settlement.to_member_id) ?? null,
-      preferredPaymentHandle: paymentInfo.preferredPaymentHandle,
+      handles: paymentInfo,
     };
   });
-  const playerResults: PlayerResultItem[] = players.map((player) => ({
+  const settlementPlayers: SettlementPlayerItem[] = players.map((player) => ({
     memberId: player.memberId,
     displayName: player.displayName,
     buyinTotal: player.buyinTotal,
     cashoutTotal: player.cashoutTotal,
     net: player.cashoutTotal - player.buyinTotal,
+    preferredPaymentMethod: player.preferredPaymentMethod,
+    handles: paymentInfoByMemberId.get(player.memberId) ?? {
+      venmo: null,
+      cashapp: null,
+      zelle: null,
+    },
   }));
 
   return (
     <SettlementView
       bankerDisplayName={bankerMember.display_name}
+      bankerMemberId={bankerMember.id}
       currentMemberId={currentMember?.id ?? null}
       groupId={groupId}
       isBanker={user.id === session.banker_id}
       isSettled={session.status === "settled"}
+      sessionStatus={session.status}
       sessionId={sessionId}
       settlements={viewSettlements}
       startedAt={session.started_at}
       endedAt={session.ended_at}
-      playerResults={playerResults}
+      players={settlementPlayers}
     />
   );
 }
@@ -229,24 +215,18 @@ function buildPlayerCashouts(
   });
 }
 
-async function getRecipientPaymentInfo(
+async function getPlayerPaymentInfo(
   members: GroupMember[],
-  settlements: Settlement[],
+  playerMemberIds: Set<string>,
 ): Promise<Map<string, PaymentInfo>> {
-  const toMemberIds = new Set(settlements.map((settlement) => settlement.to_member_id));
   const recipientUserIds = members
-    .filter((member) => toMemberIds.has(member.id) && member.user_id)
+    .filter((member) => playerMemberIds.has(member.id) && member.user_id)
     .map((member) => member.user_id as string);
 
-  if (recipientUserIds.length === 0) {
-    return new Map();
-  }
-
   const admin = createAdminClient();
-  const { data: users, error } = await admin
-    .from("users")
-    .select("id,preferred_payment_handle")
-    .in("id", recipientUserIds);
+  const { data: users, error } = recipientUserIds.length > 0
+    ? await admin.from("users").select("id,venmo_handle,cashapp_handle,zelle_handle").in("id", recipientUserIds)
+    : { data: [], error: null };
 
   if (error) {
     throw new Error(error.message);
@@ -256,28 +236,17 @@ async function getRecipientPaymentInfo(
   const paymentInfoByMemberId = new Map<string, PaymentInfo>();
 
   for (const member of members) {
-    if (!member.user_id || !toMemberIds.has(member.id)) {
+    if (!playerMemberIds.has(member.id)) {
       continue;
     }
 
-    const recipient = usersById.get(member.user_id);
+    const recipient = member.user_id ? usersById.get(member.user_id) : null;
     paymentInfoByMemberId.set(member.id, {
-      preferredPaymentHandle: recipient?.preferred_payment_handle ?? null,
+      venmo: recipient?.venmo_handle ?? member.venmo_handle,
+      cashapp: recipient?.cashapp_handle ?? member.cashapp_handle,
+      zelle: recipient?.zelle_handle ?? member.zelle_handle,
     });
   }
 
   return paymentInfoByMemberId;
-}
-
-function normalizePaymentMethod(method: string | null): SettlementPaymentMethod | null {
-  if (
-    method === "venmo" ||
-    method === "cashapp" ||
-    method === "zelle" ||
-    method === "cash"
-  ) {
-    return method;
-  }
-
-  return null;
 }
