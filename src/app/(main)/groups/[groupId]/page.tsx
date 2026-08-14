@@ -73,11 +73,11 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
             </div>
           </FeltCard>
         </Link>
-      ) : (
+      ) : canEditMembers ? (
         <Link className="grid h-14 w-full place-items-center rounded-full bg-accent text-[17px] font-semibold text-accent-ink transition active:scale-[0.98]" href={`/groups/${group.id}/sessions/new`}>
           Start a session
         </Link>
-      )}
+      ) : null}
 
       <section>
         <h2 className="mb-3 mt-8 text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3">Players</h2>

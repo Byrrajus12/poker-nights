@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { MemberRoleManager } from "./member-role-manager";
 
 export default async function GroupSettingsPage({
   params,
@@ -7,6 +10,31 @@ export default async function GroupSettingsPage({
   params: Promise<{ groupId: string }>;
 }) {
   const { groupId } = await params;
+  const supabase = await createClient();
+  const [
+    { data: group, error: groupError },
+    { data: members, error: membersError },
+    { data: { user }, error: userError },
+  ] = await Promise.all([
+    supabase
+      .from("groups")
+      .select("id,name,created_by")
+      .eq("id", groupId)
+      .maybeSingle(),
+    supabase
+      .from("group_members")
+      .select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at")
+      .eq("group_id", groupId)
+      .order("display_name", { ascending: true }),
+    supabase.auth.getUser(),
+  ]);
+
+  if (groupError || membersError || userError) {
+    throw new Error(groupError?.message ?? membersError?.message ?? userError?.message ?? "Could not load group settings");
+  }
+  if (!group) notFound();
+
+  const roster = members ?? [];
   return (
     <section>
       <Link
@@ -17,12 +45,9 @@ export default async function GroupSettingsPage({
         <span className="text-[15px]">Back</span>
       </Link>
       <h1 className="text-[30px] font-bold tracking-[-0.02em] text-ink">Group settings</h1>
-      <p className="mt-1 text-[15px] text-ink-2">More controls are coming soon.</p>
+      <p className="mt-1 text-[15px] text-ink-2">Manage {group.name}&apos;s members and access.</p>
 
-      <div className="mt-7 rounded-2xl bg-surface-2 p-4">
-        <p className="text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3">Group ID</p>
-        <p className="mt-2 break-all text-[13px] text-ink-2">{groupId}</p>
-      </div>
+      <MemberRoleManager creatorId={group.created_by} currentUserId={user?.id ?? null} initialMembers={roster} />
     </section>
   );
 }
