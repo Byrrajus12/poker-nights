@@ -9,7 +9,7 @@ import { ChevronRight } from "lucide-react";
 
 type ClaimFlowProps = {
   group: Pick<Group, "id" | "name">;
-  members: Pick<GroupMember, "id" | "display_name" | "is_claimed">[];
+  members: Pick<GroupMember, "id" | "display_name" | "avatar_url" | "is_claimed">[];
 };
 
 export default function ClaimFlow({ group, members }: ClaimFlowProps) {
@@ -46,9 +46,19 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
     if (!user) return;
 
     const supabase = createClient();
+    const member = members.find((item) => item.id === memberId);
+    const { data: profile } = await supabase
+      .from("users")
+      .select("avatar_url")
+      .eq("id", user.id)
+      .maybeSingle();
     const { data, error: claimError } = await supabase
       .from("group_members")
-      .update({ user_id: user.id, is_claimed: true })
+      .update({
+        user_id: user.id,
+        is_claimed: true,
+        ...(!member?.avatar_url && profile?.avatar_url ? { avatar_url: profile.avatar_url } : {}),
+      })
       .eq("id", memberId)
       .eq("group_id", group.id)
       .eq("is_claimed", false)
@@ -77,7 +87,7 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
     const supabase = createClient();
     const { data: profile, error: profileError } = await supabase
       .from("users")
-      .select("display_name")
+      .select("display_name,avatar_url")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -94,6 +104,7 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
       group_id: group.id,
       user_id: user.id,
       display_name: displayName,
+      avatar_url: profile?.avatar_url ?? null,
       role: "member",
       is_claimed: true,
     });
@@ -128,7 +139,7 @@ export default function ClaimFlow({ group, members }: ClaimFlowProps) {
               onClick={() => claimMember(member.id)}
               type="button"
             >
-              <PlayerAvatar name={member.display_name} size="sm" />
+              <PlayerAvatar avatarUrl={member.avatar_url} name={member.display_name} size="sm" />
               <span className="text-[15px] font-semibold text-ink">
                 {pendingId === member.id ? "Claiming…" : member.display_name}
               </span>

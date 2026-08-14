@@ -56,7 +56,7 @@ export default async function JoinWithCodePage({
 
   const { data: members } = await supabase
     .from("group_members")
-    .select("id, display_name, is_claimed")
+    .select("id, display_name, avatar_url, is_claimed")
     .eq("group_id", group.id)
     .order("display_name", { ascending: true });
 
