@@ -14,7 +14,9 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState("Player");
   const [email, setEmail] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("venmo");
-  const [handle, setHandle] = useState("");
+  const [venmoHandle, setVenmoHandle] = useState("");
+  const [cashappHandle, setCashappHandle] = useState("");
+  const [zelleHandle, setZelleHandle] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -23,18 +25,26 @@ export default function ProfilePage() {
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       setUserId(data.user.id); setEmail(data.user.email ?? "");
-      const { data: profile } = await supabase.from("users").select("display_name,email,preferred_payment_method,preferred_payment_handle").eq("id", data.user.id).maybeSingle();
+      const { data: profile } = await supabase.from("users").select("display_name,email,preferred_payment_method,venmo_handle,cashapp_handle,zelle_handle").eq("id", data.user.id).maybeSingle();
       setDisplayName(profile?.display_name || data.user.email?.split("@")[0] || "Player");
       setEmail(profile?.email || data.user.email || "");
       if (profile?.preferred_payment_method) setMethod(profile.preferred_payment_method);
-      setHandle(profile?.preferred_payment_handle ?? "");
+      setVenmoHandle(profile?.venmo_handle ?? "");
+      setCashappHandle(profile?.cashapp_handle ?? "");
+      setZelleHandle(profile?.zelle_handle ?? "");
     });
   }, []);
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!userId) return;
     setBusy(true); setMessage("");
-    const { error } = await createClient().from("users").update({ display_name: displayName.trim(), preferred_payment_method: method, preferred_payment_handle: handle.trim() || null }).eq("id", userId);
+    const { error } = await createClient().from("users").update({
+      display_name: displayName.trim(),
+      preferred_payment_method: method,
+      venmo_handle: venmoHandle.trim().replace(/^@+/, "") || null,
+      cashapp_handle: cashappHandle.trim().replace(/^\$+/, "") || null,
+      zelle_handle: zelleHandle.trim() || null,
+    }).eq("id", userId);
     setBusy(false); setMessage(error ? error.message : "Profile saved.");
     if (!error) router.refresh();
   }
@@ -81,15 +91,21 @@ export default function ProfilePage() {
           </div>
         </fieldset>
 
-        <label className="block">
-          <span className="block text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3 mb-2">Payment handle</span>
-          <input
-            className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15"
-            onChange={(event) => setHandle(event.target.value)}
-            placeholder={method === "cashapp" ? "$cashtag" : method === "venmo" ? "@username" : "Email or phone"}
-            value={handle}
-          />
-        </label>
+        <fieldset className="space-y-3 border-t border-line pt-5">
+          <legend className="mb-2 text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3">Payment handles</legend>
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-medium text-ink-2">Venmo handle</span>
+            <input className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15" onChange={(event) => setVenmoHandle(event.target.value)} placeholder="username, no @" value={venmoHandle} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-medium text-ink-2">Cash App handle</span>
+            <input className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15" onChange={(event) => setCashappHandle(event.target.value)} placeholder="$cashtag, no $" value={cashappHandle} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[13px] font-medium text-ink-2">Zelle handle</span>
+            <input className="h-12 w-full rounded-2xl bg-surface-2 px-4 text-[17px] text-ink placeholder:text-ink-3 outline-none focus:ring-2 focus:ring-white/15" onChange={(event) => setZelleHandle(event.target.value)} placeholder="email or phone" value={zelleHandle} />
+          </label>
+        </fieldset>
 
         {message ? (
           <p className={`rounded-2xl bg-surface-2 p-3 text-sm ${message === "Profile saved." ? "text-positive" : "text-danger"}`}>

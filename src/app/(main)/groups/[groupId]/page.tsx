@@ -2,23 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check, ChevronLeft, ChevronRight, Settings } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { PlayerAvatar } from "@/components/ui/player-avatar";
 import { AmountDisplay } from "@/components/ui/amount-display";
 import { PotDisplay } from "@/components/ui/pot-display";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { FeltCard } from "@/components/ui/felt-card";
 import { formatDuration, formatSessionDate } from "@/lib/utils";
 import { CopyInviteButton } from "./copy-invite-button";
+import { MemberHandleEditor } from "./member-handle-editor";
 
 export default async function GroupPage({ params }: { params: Promise<{ groupId: string }> }) {
   const { groupId } = await params;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: group, error: groupError } = await supabase.from("groups").select("id,name,invite_code,created_by,buyin_presets,created_at").eq("id", groupId).maybeSingle();
   if (groupError) throw new Error(groupError.message);
   if (!group) notFound();
 
   const [membersResult, sessionsResult] = await Promise.all([
-    supabase.from("group_members").select("id,group_id,user_id,display_name,role,is_claimed,payment_handle,payment_method,created_at").eq("group_id", groupId).order("created_at"),
+    supabase.from("group_members").select("id,group_id,user_id,display_name,role,is_claimed,venmo_handle,cashapp_handle,zelle_handle,created_at").eq("group_id", groupId).order("created_at"),
     supabase.from("sessions").select("id,group_id,banker_id,status,started_at,ended_at,notes").eq("group_id", groupId).order("started_at", { ascending: false }),
   ]);
   if (membersResult.error || sessionsResult.error) throw new Error(membersResult.error?.message ?? sessionsResult.error?.message ?? "Could not load group");
@@ -34,6 +35,7 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
   const pot = (id: string) => (transactionsResult.data ?? []).filter((row) => row.session_id === id && row.type === "buyin").reduce((sum, row) => sum + row.amount, 0);
   const activeSession = sessions.find((session) => session.status === "active");
   const history = sessions.filter((session) => session.status !== "active");
+  const canEditMembers = Boolean(user && members.some((member) => member.user_id === user.id && member.role === "admin"));
 
   return (
     <div className="space-y-8">
@@ -79,14 +81,7 @@ export default async function GroupPage({ params }: { params: Promise<{ groupId:
 
       <section>
         <h2 className="mb-3 mt-8 text-[11px] font-[650] uppercase tracking-[0.10em] text-ink-3">Players</h2>
-        <div className="flex gap-4 overflow-x-auto pb-1 [scrollbar-width:none]">
-          {members.map((member) => (
-            <div className="flex shrink-0 flex-col items-center gap-2" key={member.id}>
-              <PlayerAvatar name={member.display_name} size="lg" />
-              <p className="max-w-14 truncate text-center text-[13px] text-ink-2">{member.display_name}</p>
-            </div>
-          ))}
-        </div>
+        <MemberHandleEditor canEdit={canEditMembers} initialMembers={members} />
       </section>
 
       <section>
