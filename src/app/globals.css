@@ -213,3 +213,13 @@ textarea:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+@media (display-mode: standalone) {
+  * {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+  }
+  *::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
+}
