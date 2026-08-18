@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { PWARegister } from "@/components/pwa-register";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,10 +29,16 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Poker Nights",
   },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    apple: "/icons/icon-192.png",
+  },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1b1a17",
+  themeColor: "#070605",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -43,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         {children}
         <Analytics />
+        <PWARegister />
       </body>
     </html>
   );
