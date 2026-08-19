@@ -76,6 +76,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <head>
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         {splashOrientations.flatMap((orientation) =>
           appleSplashScreens.map(({ width, height, pixelRatio, file }) => (
             <link
