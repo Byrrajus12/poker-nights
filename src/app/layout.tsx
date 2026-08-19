@@ -42,6 +42,33 @@ export const viewport: Viewport = {
   themeColor: "#070605",
 };
 
+const appleSplashScreens = [
+  { width: 440, height: 956, pixelRatio: 3, file: "iPhone_17_Pro_Max__iPhone_16_Pro_Max" },
+  { width: 402, height: 874, pixelRatio: 3, file: "iPhone_17_Pro__iPhone_17__iPhone_16_Pro" },
+  { width: 430, height: 932, pixelRatio: 3, file: "iPhone_16_Plus__iPhone_15_Pro_Max__iPhone_15_Plus__iPhone_14_Pro_Max" },
+  { width: 420, height: 912, pixelRatio: 3, file: "iPhone_Air" },
+  { width: 393, height: 852, pixelRatio: 3, file: "iPhone_16__iPhone_15_Pro__iPhone_15__iPhone_14_Pro" },
+  { width: 428, height: 926, pixelRatio: 3, file: "iPhone_14_Plus__iPhone_13_Pro_Max__iPhone_12_Pro_Max" },
+  { width: 390, height: 844, pixelRatio: 3, file: "iPhone_17e__iPhone_16e__iPhone_14__iPhone_13_Pro__iPhone_13__iPhone_12_Pro__iPhone_12" },
+  { width: 375, height: 812, pixelRatio: 3, file: "iPhone_13_mini__iPhone_12_mini__iPhone_11_Pro__iPhone_XS__iPhone_X" },
+  { width: 414, height: 896, pixelRatio: 3, file: "iPhone_11_Pro_Max__iPhone_XS_Max" },
+  { width: 414, height: 896, pixelRatio: 2, file: "iPhone_11__iPhone_XR" },
+  { width: 414, height: 736, pixelRatio: 3, file: "iPhone_8_Plus__iPhone_7_Plus__iPhone_6s_Plus__iPhone_6_Plus" },
+  { width: 375, height: 667, pixelRatio: 2, file: "iPhone_8__iPhone_7__iPhone_6s__iPhone_6__4.7__iPhone_SE" },
+  { width: 320, height: 568, pixelRatio: 2, file: "4__iPhone_SE__iPod_touch_5th_generation_and_later" },
+  { width: 1032, height: 1376, pixelRatio: 2, file: "13__iPad_Pro_M4" },
+  { width: 1024, height: 1366, pixelRatio: 2, file: "12.9__iPad_Pro" },
+  { width: 834, height: 1210, pixelRatio: 2, file: "11__iPad_Pro_M4" },
+  { width: 834, height: 1194, pixelRatio: 2, file: "11__iPad_Pro__10.5__iPad_Pro" },
+  { width: 820, height: 1180, pixelRatio: 2, file: "10.9__iPad_Air" },
+  { width: 834, height: 1112, pixelRatio: 2, file: "10.5__iPad_Air" },
+  { width: 810, height: 1080, pixelRatio: 2, file: "10.2__iPad" },
+  { width: 768, height: 1024, pixelRatio: 2, file: "9.7__iPad_Pro__7.9__iPad_mini__9.7__iPad_Air__9.7__iPad" },
+  { width: 744, height: 1133, pixelRatio: 2, file: "8.3__iPad_Mini" },
+] as const;
+
+const splashOrientations = ["landscape", "portrait"] as const;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -49,61 +76,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <head>
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-750x1334.png"
-          media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1242x2208.png"
-          media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1125x2436.png"
-          media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-828x1792.png"
-          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1242x2688.png"
-          media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1170x2532.png"
-          media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1284x2778.png"
-          media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1179x2556.png"
-          media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1290x2796.png"
-          media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1206x2622.png"
-          media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
-        <link
-          rel="apple-touch-startup-image"
-          href="/icons/splash/splash-1320x2868.png"
-          media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-        />
+        {splashOrientations.flatMap((orientation) =>
+          appleSplashScreens.map(({ width, height, pixelRatio, file }) => (
+            <link
+              key={`${file}-${orientation}`}
+              rel="apple-touch-startup-image"
+              media={`screen and (device-width: ${width}px) and (device-height: ${height}px) and (-webkit-device-pixel-ratio: ${pixelRatio}) and (orientation: ${orientation})`}
+              href={`/icons/splash/${file}_${orientation}.png`}
+            />
+          )),
+        )}
       </head>
       <body className="min-h-full flex flex-col">
         {children}
