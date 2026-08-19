@@ -26,7 +26,7 @@ export default function Home() {
           <div className="mt-2">
             <AmountDisplay amount={124000} size="xl" variant="display" className="!text-on-felt" />
           </div>
-          <p className="mt-3 text-[13px] text-on-felt-dim">6 players · 2h 14m</p>
+          <p className="mt-3 text-[13px] text-on-felt-dim">4 players · 2h 14m</p>
           <div className="mt-5 flex -space-x-2">
             {["Maya", "Jordan", "Sam", "Dev"].map((name) => (
               <PlayerAvatar
